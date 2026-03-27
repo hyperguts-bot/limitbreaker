@@ -117,7 +117,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 .ex-nav{display:flex;align-items:center;gap:5px;margin-bottom:7px}
 .ex-nb{width:26px;height:26px;background:var(--bg3);border:0.5px solid var(--b2);border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t2);font-size:14px;flex-shrink:0}
 .ex-nb:disabled{opacity:.2;cursor:not-allowed}
-.ex-name-big{font-family:var(--fd);font-size:30px;letter-spacing:1.5px;color:var(--te);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.ex-name-big{font-family:var(--fd);font-size:30px;letter-spacing:1.5px;color:var(--te);flex:1;white-space:normal;overflow:visible;word-break:break-all;text-align:center;line-height:1.1}
 .ex-cnt{font-size:14px;color:var(--t3);flex-shrink:0;min-width:24px;text-align:right}
 .rest-row{display:flex;align-items:center;gap:4px;margin-bottom:7px}
 .rest-blk{background:var(--bg3);border:0.5px solid var(--b2);border-radius:7px;padding:5px 7px;display:flex;align-items:center;gap:4px;flex:1}
@@ -2525,6 +2525,8 @@ function addDBEx(){
   } else {
     masterDB.push(entry);
   }
+  // 五十音順にソート
+  masterDB.sort((a,b)=>kanaToHira(a.n).localeCompare(kanaToHira(b.n),'ja',{sensitivity:'base',numeric:true}));
   saveMDB();
   // reset form
   ['db-name','db-reps','db-wt'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
