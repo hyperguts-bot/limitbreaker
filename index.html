@@ -2456,11 +2456,11 @@ function saveRoutine(){
 /* ═══ DB ═══ */
 function renderDBFilter(){document.getElementById('db-filter-row').innerHTML=MUSCLES.map(m=>`<div class="mfb ${(m==='全て'&&!dbF)||m===dbF?'on':''}" onclick="setDBF('${m==='全て'?'':m}')">${m==='全て'?'全て':MUSCLES_JP[m]||m}</div>`).join('')}
 function setDBF(m){dbF=m;renderDBFilter();renderDBList()}
+function kanaToHira(s){return s.replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/[Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase();}
 function renderDBList(){
   const raw=!dbF?masterDB:masterDB.filter(e=>e.m===dbF);
   const muscleOrder=['Chest','Back','Legs','Shoulder','Arms','Core'];
   function charCat(c){const cp=c.codePointAt(0);if(cp>=0x21&&cp<=0x7E){if(cp>=0x30&&cp<=0x39)return 1;if((cp>=0x41&&cp<=0x5A)||(cp>=0x61&&cp<=0x7A))return 2;return 0;}if(cp>=0xFF01&&cp<=0xFF5E){const h=cp-0xFEE0;if(h>=0x30&&h<=0x39)return 1;if((h>=0x41&&h<=0x5A)||(h>=0x61&&h<=0x7A))return 2;return 0;}if((cp>=0x3041&&cp<=0x3096)||(cp>=0x30A1&&cp<=0x30F6))return 3;if(cp>=0x4E00&&cp<=0x9FFF)return 4;return 5;}
-  function kanaToHira(s){return s.replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/[Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase();}
   function exSortKey(name){const cat=charCat(name[0]||'\u9999');return String(cat)+'|'+kanaToHira(name);}
   const f=[...raw].sort((a,b)=>{
     const ma=muscleOrder.indexOf(a.m),mb=muscleOrder.indexOf(b.m);
