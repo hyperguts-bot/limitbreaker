@@ -497,6 +497,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
       <div class="sc2"><div class="sc2-n" id="st-sn">0</div><div class="sc2-l" id="st-sl">Sessions</div></div>
       <div class="sc2"><div class="sc2-n" id="st-setn">0</div><div class="sc2-l" id="st-setl">Total Sets</div></div>
       <div class="sc2"><div class="sc2-n" style="color:var(--go)" id="st-strn">0</div><div class="sc2-l" id="st-strl">Day Streak</div></div>
+      <div class="sc2"><div class="sc2-n" style="color:var(--bl)" id="st-timen">0</div><div class="sc2-l">時間 min</div></div>
       <div class="sc2"><div class="sc2-n" style="color:var(--bl)" id="st-prn">—</div><div class="sc2-l" id="st-prl">Best PR</div><div class="sc2-sub" id="st-prex"></div></div>
     </div>
     <div class="sec-lbl" id="st-cal-l">今週</div>
@@ -830,7 +831,7 @@ const saveSettings=()=>{
   if(drEl)settings.defaultRest=parseInt(drEl.value)||90;
   const bb=document.getElementById('set-barbell');if(bb)settings.barbell=parseFloat(bb.value)||20;
   const ez=document.getElementById('set-ezbar');if(ez)settings.ezbar=parseFloat(ez.value)||10;
-  const db2=document.getElementById('set-dumbbell');if(db2)settings.dumbbell=parseFloat(db2.value)||2;
+  const db2=document.getElementById('set-dumbbell');if(db2)settings.dumbbell=db2.value===''?0:parseFloat(db2.value)??0;
   const colBB=document.getElementById('set-collar-barbell');if(colBB)settings.collarBarbell=parseFloat(colBB.value)||0;
   const colEZ=document.getElementById('set-collar-ezbar');if(colEZ)settings.collarEzbar=parseFloat(colEZ.value)||0;
   const colDB=document.getElementById('set-collar-dumbbell');if(colDB)settings.collarDumbbell=parseFloat(colDB.value)||0;
@@ -1021,7 +1022,7 @@ function renderTodayWorkout(todayRecs,el,expanded){
     const exRows=r.exercises.map(ex=>{
       const sets=ex.sets.filter(s=>parseInt(s.reps||0)>0);
       const eqp=ex.equip||'none';
-      const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?(settings.dumbbell||2)+(settings.collarDumbbell??0):0;
+      const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??0):0;
       const maxKg=sets.length?Math.max(...sets.map(s=>s.kg||0)):0;
       const topSet=sets.find(s=>s.kg===maxKg);
       const rm=maxKg>0&&topSet?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)):0;
@@ -1171,7 +1172,7 @@ function renderSessEx(){
   restSec=ex.restSec||settings.defaultRest||90;document.getElementById('sess-rv').textContent=restSec+'s';
   const nl='メモ';
   const exEquip=(ex.equip)||'none';
-  const barAdd=exEquip==='barbell'?(settings.barbell||20)+(settings.collarBarbell??settings.collar??0.5)*2:exEquip==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??settings.collar??0.5)*2:exEquip==='dumbbell'?(settings.dumbbell||2)+(settings.collarDumbbell??settings.collar??0):0;
+  const barAdd=exEquip==='barbell'?(settings.barbell||20)+(settings.collarBarbell??settings.collar??0.5)*2:exEquip==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??settings.collar??0.5)*2:exEquip==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??settings.collar??0):0;
   document.getElementById('sess-ex-area').innerHTML=`
     <div class="excard">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;gap:4px">
@@ -1199,7 +1200,7 @@ function renderSessEx(){
       const dStr=`${d.getMonth()+1}/${d.getDate()}`;
       const setRows=prevEx.sets.filter(s=>parseInt(s.reps||0)>0).map(s=>{
         const eqp2=prevEx.equip||'none';
-        const bAdd2=eqp2==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp2==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp2==='dumbbell'?((settings.dumbbell||2)+(settings.collarDumbbell??0))*2:0;
+        const bAdd2=eqp2==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp2==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp2==='dumbbell'?(((settings.dumbbell??2))+(settings.collarDumbbell??0))*2:0;
         const tot=bAdd2>0?`${((s.kg||0)+bAdd2).toFixed(1).replace(/\.0$/,'')}kg`:`${s.kg||0}kg`;
         const cheatStr=parseInt(s.cheat||0)>0?` +${s.cheat}C`:'';
         const assistStr=parseInt(s.assist||0)>0?` -${s.assist}A`:'';
@@ -1241,7 +1242,7 @@ function refreshSetRows(){
   const ex=session.exs[session.idx];
   const canDel=ex.sets.length>1;
   const eqp=(ex.equip)||'none';
-  const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??settings.collar??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??settings.collar??0.5)*2:eqp==='dumbbell'?(settings.dumbbell||2)+(settings.collarDumbbell??settings.collar??0):0;
+  const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??settings.collar??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??settings.collar??0.5)*2:eqp==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??settings.collar??0):0;
   document.getElementById('setrows').innerHTML=ex.sets.map((s,i)=>{
     const plate=s.kg?toDisp(s.kg):0;
     const total=bAdd>0?(+plate+bAdd).toFixed(1).replace(/\.0$/,''):'';
@@ -1300,7 +1301,7 @@ function updateSet(i,key,val){
   if(key==='kg'){
     const ex=session.exs[session.idx];
     const eqp=(ex.equip)||'none';
-    const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??settings.collar??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??settings.collar??0.5)*2:eqp==='dumbbell'?(settings.dumbbell||2)+(settings.collarDumbbell??settings.collar??0):0;
+    const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??settings.collar??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??settings.collar??0.5)*2:eqp==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??settings.collar??0):0;
     const rows=document.querySelectorAll('#setrows .set-data-row');
     if(rows[i]){
       const plate=val?toDisp(val):0;
@@ -1542,6 +1543,8 @@ function renderStats(){
   document.getElementById('st-sn').textContent=filtered.length;
   document.getElementById('st-setn').textContent=sets;
   document.getElementById('st-strn').textContent=calcStreak();
+  const totalTime=filtered.reduce((a,r)=>a+(parseInt(r.elapsed)||0),0);
+  const timeEl=document.getElementById('st-timen');if(timeEl)timeEl.textContent=totalTime;
   // PR
   let bestPR=0,bestEx='';
   records.forEach(r=>r.exercises.forEach(ex=>ex.sets.forEach(s=>{const v=s.kg||0;if(v>bestPR){bestPR=v;bestEx=ex.n}})));
@@ -1997,7 +2000,7 @@ function renderHomeCalDet(){
       const rm=maxKg>0?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)):0;
       const rows=displaySets.map((s,si)=>{
         const eqp=ex.equip||'none';
-        const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?(settings.dumbbell||2)+(settings.collarDumbbell??0):0;
+        const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??0):0;
         const tot=bAdd>0?((s.kg||0)+bAdd).toFixed(1).replace(/\.0$/,''):s.kg||0;
         const rp=parseInt(s.reps||0);
         const vol=Math.round((s.kg||0)*rp);
@@ -2066,8 +2069,9 @@ function loadRecordToSession(globalIdx){
     sets:ex.sets.map(s=>({kg:s.kg,reps:s.reps||'',note:s.note||'',done:s.done||false,cheat:s.cheat||false}))
   }));
   sessIdx=0;sessName=r.progName||'ワークアウト';sessStart=Date.now();
-  // _editId: index依存を避けIDで上書き対象を特定
-  session={name:sessName,exs:sessExercises,idx:0,start:Date.now(),_editId:r._id};
+  // 累積時間：前回のelapsedを引き継いでstartを過去にオフセット
+  const prevElapsed=(r.elapsed||0)*60000;
+  session={name:sessName,exs:sessExercises,idx:0,start:Date.now()-prevElapsed,_editId:r._id,_baseElapsed:r.elapsed||0};
   nav('session');renderSession();startElapsedTimer();
 }
 function renderCalDet(){
@@ -2099,7 +2103,7 @@ function renderCalDet(){
         </tr></thead>
         <tbody>${displaySets.map((s,si)=>{
           const eqp=ex.equip||'none';
-          const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?(settings.dumbbell||2)+(settings.collarDumbbell??0):0;
+          const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??0):0;
           const tot=bAdd>0?((s.kg||0)+bAdd).toFixed(1).replace(/\.0$/,''):s.kg||0;
           const rp=parseInt(s.reps||0);
           const vol=Math.round((s.kg||0)*rp);
@@ -2456,13 +2460,23 @@ function saveRoutine(){
 /* ═══ DB ═══ */
 function renderDBFilter(){document.getElementById('db-filter-row').innerHTML=MUSCLES.map(m=>`<div class="mfb ${(m==='全て'&&!dbF)||m===dbF?'on':''}" onclick="setDBF('${m==='全て'?'':m}')">${m==='全て'?'全て':MUSCLES_JP[m]||m}</div>`).join('')}
 function setDBF(m){dbF=m;renderDBFilter();renderDBList()}
-function kanaToHira(s){return s.replace(/[ァ-ヶ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/[Ａ-Ｚａ-ｚ]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).toLowerCase();}
+const MUSCLE_ORDER=['Chest','Back','Shoulder','Arms','Legs','Core'];
+function sortMasterDB(){
+  masterDB.sort((a,b)=>{
+    const ma=MUSCLE_ORDER.indexOf(a.m),mb=MUSCLE_ORDER.indexOf(b.m);
+    const md=(ma===-1?99:ma)-(mb===-1?99:mb);
+    if(md!==0)return md;
+    return kanaToHira(a.n).localeCompare(kanaToHira(b.n),'ja',{sensitivity:'base',numeric:true});
+  });
+}
 function renderDBList(){
   const raw=!dbF?masterDB:masterDB.filter(e=>e.m===dbF);
   const muscleOrder=['Chest','Back','Shoulder','Arms','Legs','Core'];
   function charCat(c){const cp=c.codePointAt(0);if(cp>=0x21&&cp<=0x7E){if(cp>=0x30&&cp<=0x39)return 1;if((cp>=0x41&&cp<=0x5A)||(cp>=0x61&&cp<=0x7A))return 2;return 0;}if(cp>=0xFF01&&cp<=0xFF5E){const h=cp-0xFEE0;if(h>=0x30&&h<=0x39)return 1;if((h>=0x41&&h<=0x5A)||(h>=0x61&&h<=0x7A))return 2;return 0;}if((cp>=0x3041&&cp<=0x3096)||(cp>=0x30A1&&cp<=0x30F6))return 3;if(cp>=0x4E00&&cp<=0x9FFF)return 4;return 5;}
   function exSortKey(name){const cat=charCat(name[0]||'\u9999');return String(cat)+'|'+kanaToHira(name);}
-  const f=[...raw].sort((a,b)=>kanaToHira(a.n).localeCompare(kanaToHira(b.n),'ja',{sensitivity:'base',numeric:true}));
+  const f=dbF===''
+    ? [...raw].sort((a,b)=>kanaToHira(a.n).localeCompare(kanaToHira(b.n),'ja',{sensitivity:'base',numeric:true}))
+    : [...raw].sort((a,b)=>kanaToHira(a.n).localeCompare(kanaToHira(b.n),'ja',{sensitivity:'base',numeric:true}));
   document.getElementById('db-list').innerHTML=f.map(ex=>{
     const restDisp=ex.isometric?(ex.restSec>=60?`${Math.floor(ex.restSec/60)}分${ex.restSec%60?ex.restSec%60+'秒':''}`:ex.restSec+'秒'):(ex.restSec+'s');
     const equipTag=ex.equip&&ex.equip!=='none'?`<span style="font-size:17px;background:rgba(59,139,212,.12);color:var(--bl);border:0.5px solid rgba(59,139,212,.3);border-radius:3px;padding:1px 4px;margin-left:3px">${ex.equip==='barbell'?'BB':'DB'}</span>`:''
