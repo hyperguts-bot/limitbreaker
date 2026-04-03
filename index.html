@@ -113,7 +113,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 .ex-pip{flex:1;height:3px;background:var(--b2);border-radius:2px;cursor:pointer}
 .ex-pip.done{background:var(--gr)}
 .ex-pip.cur{background:var(--ac)}
-.sess-body{padding:7px 12px;flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sess-body{padding:7px 12px}
 .ex-nav{display:flex;align-items:center;gap:5px;margin-bottom:7px}
 .ex-act-row{display:flex;gap:6px;margin-bottom:7px}
 .ex-act-btn{flex:1;height:32px;padding:5px 10px;border-radius:5px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}
@@ -140,6 +140,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 /* set grid: SET | KG | TOTAL | REPS | Cheat | Assist | Del */
 .shead3{display:grid;grid-template-columns:16px 1fr 38px 1fr 1fr 1fr 22px;gap:2px;align-items:center;margin-bottom:2px}
 .srow3{display:grid;grid-template-columns:16px 1fr 38px 1fr 1fr 1fr 22px;gap:2px;align-items:center;margin-bottom:2px}
+#setrows{max-height:38vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .srow3-note{margin-top:1px;margin-bottom:4px;padding-left:2px}
 .sh{font-size:17px;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;text-align:center}
 .sn{font-family:var(--fd);font-size:24px;color:var(--t3);text-align:center}
@@ -1195,11 +1196,11 @@ function renderSessEx(){
         <div class="ex-name-big" style="font-size:14px;text-align:left;flex:1">${ex.n}</div>
         <span style="font-size:13px;color:var(--t3)">${ex.sets.length} sets</span>
       </div>
+      <div id="sess-prev-rec" style="margin-top:4px"></div>
       <div class="shead3"><div class="sh">SET</div><div class="sh">${settings.unit==="lb"?"LBS":"KG"}<div style="font-size:9px;line-height:1;color:var(--t3);margin-top:1px">${exEquip==="barbell"?"プレート":exEquip==="dumbbell"?"片側":""}</div></div><div class="sh" style="font-size:11px;color:${exEquip!=="none"?"var(--bl)":"var(--b2)"}">${exEquip!=="none"?"総重量<div style=\"font-size:9px;line-height:1;color:var(--t3);margin-top:1px\">バー含む</div>":"—"}</div><div class="sh">REP</div><div class="sh" style="font-size:9px;letter-spacing:0">チート</div><div class="sh" style="font-size:9px;letter-spacing:0">補助</div><div></div></div>
       <div id="setrows"></div>
       <button class="addsb" onclick="addSessSet()" style="padding:5px;height:32px">＋ セット追加</button>
-    </div>
-    <div id="sess-prev-rec" style="margin-top:4px"></div>`;
+    </div>`;
   const rmEl=document.getElementById("rm-target-area");
   if(rmEl)rmEl.innerHTML="";
   refreshSetRows();
