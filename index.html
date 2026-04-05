@@ -62,7 +62,6 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 .goal-card:active{opacity:.88}
 .goal-text{font-family:var(--fd);font-size:14px;letter-spacing:1px;color:var(--gr);line-height:1.4;word-break:break-all}
 .goal-placeholder{font-size:24px;color:var(--t3);letter-spacing:.5px}
-.goal-edit-hint{position:absolute;top:4px;right:7px;font-size:17px;color:rgba(76,175,80,.4);letter-spacing:.5px}
 .goal-input{width:100%;background:transparent;border:none;outline:none;font-family:var(--fd);font-size:14px;letter-spacing:1px;color:var(--gr);text-align:center;resize:none;line-height:1.4}
 .date-hero{background:linear-gradient(180deg,#1a0808 0%,#0a0a0a 100%);padding:14px 14px 12px;border-bottom:0.5px solid var(--b)}
 .date-today{font-size:30px;color:var(--t3);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px;font-size:24px;letter-spacing:2px;color:var(--te);line-height:1;margin-bottom:0}
@@ -383,7 +382,6 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
       </div>
       <!-- 目標カード（日付の直下・固定） -->
       <div class="goal-card" id="goal-card" onclick="startGoalEdit()" style="margin-top:6px">
-        <div class="goal-edit-hint">タップで編集</div>
         <div class="goal-text" id="goal-display"></div>
       </div>
     </div>
@@ -607,6 +605,11 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
           <div class="arl" id="db-il">強度</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px" id="db-int-btns"></div>
         </div>
+      </div>
+      <!-- 行4.5: フリー/マシン -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <div class="arl" style="margin-bottom:0;min-width:fit-content">タイプ</div>
+        <div id="db-machine-btns" style="display:flex;gap:3px"></div>
       </div>
       <!-- 通常種目: セット・回数・重量・休憩 → 4列 -->
       <div id="db-normal-fields">
@@ -873,21 +876,21 @@ function setUnit(u){settings.unit=u;S.set('settings',settings);document.getEleme
 
 /* ═══ MASTER DB ═══ */
 const DEF_MASTER=[
-  {id:'m1',n:'ベンチプレス',m:'Chest',sets:4,reps:'6–8',weight:80,restSec:120,i:'high',equip:'barbell'},
-  {id:'m2',n:'インクラインDB',m:'Chest',sets:3,reps:'10–12',weight:28,restSec:90,i:'med',equip:'dumbbell'},
-  {id:'m3',n:'ペックフライ',m:'Chest',sets:3,reps:'15',weight:50,restSec:60,i:'med',equip:'none'},
-  {id:'m4',n:'デッドリフト',m:'Back',sets:3,reps:'5',weight:120,restSec:180,i:'high',equip:'barbell'},
-  {id:'m5',n:'バーベルロウ',m:'Back',sets:4,reps:'8',weight:80,restSec:120,i:'high',equip:'barbell'},
-  {id:'m6',n:'加重懸垂',m:'Back',sets:4,reps:'6–8',weight:10,restSec:120,i:'high',equip:'none'},
-  {id:'m7',n:'ラットPD',m:'Back',sets:3,reps:'10–12',weight:55,restSec:90,i:'med',equip:'none'},
-  {id:'m8',n:'スクワット',m:'Legs',sets:4,reps:'6–8',weight:100,restSec:150,i:'high',equip:'barbell'},
-  {id:'m9',n:'ルーマニアンDL',m:'Legs',sets:4,reps:'10',weight:90,restSec:120,i:'high',equip:'barbell'},
-  {id:'m10',n:'レッグプレス',m:'Legs',sets:3,reps:'15',weight:120,restSec:90,i:'med',equip:'none'},
-  {id:'m11',n:'OHP',m:'Shoulder',sets:3,reps:'8–10',weight:50,restSec:120,i:'high',equip:'barbell'},
-  {id:'m12',n:'サイドレイズ',m:'Shoulder',sets:4,reps:'15',weight:12,restSec:60,i:'med',equip:'dumbbell'},
-  {id:'m13',n:'バイセプカール',m:'Arms',sets:3,reps:'12',weight:14,restSec:60,i:'med',equip:'dumbbell'},
-  {id:'m14',n:'ハンマーカール',m:'Arms',sets:3,reps:'12',weight:18,restSec:60,i:'med',equip:'dumbbell'},
-  {id:'m15',n:'プランク',m:'Core',sets:3,reps:'60sec',weight:0,restSec:60,i:'med',equip:'none'},
+  {id:'m1',n:'ベンチプレス',m:'Chest',sets:4,reps:'6–8',weight:80,restSec:120,i:'high',equip:'barbell',machine:false},
+  {id:'m2',n:'インクラインDB',m:'Chest',sets:3,reps:'10–12',weight:28,restSec:90,i:'med',equip:'dumbbell',machine:false},
+  {id:'m3',n:'ペックフライ',m:'Chest',sets:3,reps:'15',weight:50,restSec:60,i:'med',equip:'none',machine:true},
+  {id:'m4',n:'デッドリフト',m:'Back',sets:3,reps:'5',weight:120,restSec:180,i:'high',equip:'barbell',machine:false},
+  {id:'m5',n:'バーベルロウ',m:'Back',sets:4,reps:'8',weight:80,restSec:120,i:'high',equip:'barbell',machine:false},
+  {id:'m6',n:'加重懸垂',m:'Back',sets:4,reps:'6–8',weight:10,restSec:120,i:'high',equip:'none',machine:false},
+  {id:'m7',n:'ラットPD',m:'Back',sets:3,reps:'10–12',weight:55,restSec:90,i:'med',equip:'none',machine:true},
+  {id:'m8',n:'スクワット',m:'Legs',sets:4,reps:'6–8',weight:100,restSec:150,i:'high',equip:'barbell',machine:false},
+  {id:'m9',n:'ルーマニアンDL',m:'Legs',sets:4,reps:'10',weight:90,restSec:120,i:'high',equip:'barbell',machine:false},
+  {id:'m10',n:'レッグプレス',m:'Legs',sets:3,reps:'15',weight:120,restSec:90,i:'med',equip:'none',machine:true},
+  {id:'m11',n:'OHP',m:'Shoulder',sets:3,reps:'8–10',weight:50,restSec:120,i:'high',equip:'barbell',machine:false},
+  {id:'m12',n:'サイドレイズ',m:'Shoulder',sets:4,reps:'15',weight:12,restSec:60,i:'med',equip:'dumbbell',machine:false},
+  {id:'m13',n:'バイセプカール',m:'Arms',sets:3,reps:'12',weight:14,restSec:60,i:'med',equip:'dumbbell',machine:false},
+  {id:'m14',n:'ハンマーカール',m:'Arms',sets:3,reps:'12',weight:18,restSec:60,i:'med',equip:'dumbbell',machine:false},
+  {id:'m15',n:'プランク',m:'Core',sets:3,reps:'60sec',weight:0,restSec:60,i:'med',equip:'none',machine:false},
 ];
 let masterDB=S.get('masterDB')||JSON.parse(JSON.stringify(DEF_MASTER));
 // マイグレーション：equipフィールドがない種目にDEF_MASTERの値を補完
@@ -895,6 +898,10 @@ masterDB.forEach(ex=>{
   if(ex.equip===undefined){
     const def=DEF_MASTER.find(d=>d.id===ex.id);
     ex.equip=def?def.equip:'none';
+  }
+  if(ex.machine===undefined){
+    const def=DEF_MASTER.find(d=>d.id===ex.id);
+    ex.machine=def?def.machine:false;
   }
 });
 const saveMDB=()=>S.set('masterDB',masterDB);
@@ -1042,7 +1049,9 @@ function renderTodayWorkout(todayRecs,el,expanded){
       const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??0):0;
       const maxKg=sets.length?Math.max(...sets.map(s=>s.kg||0)):0;
       const topSet=sets.find(s=>s.kg===maxKg);
-      const rm=maxKg>0&&topSet?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)):0;
+      const exM=masterDB.find(e=>e.n===ex.n);
+      const mc=exM?.machine?0.9:1.0;
+      const rm=maxKg>0&&topSet?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)*mc):0;
       const setTags=sets.map(s=>{
         const tot=bAdd>0?`${((s.kg||0)+bAdd).toFixed(1).replace(/\.0$/,'')}kg`:`${s.kg||0}kg`;
         return`<span style="font-size:12px;color:var(--t2);background:var(--bg3);border:0.5px solid var(--b);border-radius:3px;padding:0 4px;white-space:nowrap">${tot}×${s.reps}</span>`;
@@ -1067,22 +1076,17 @@ let goalText=S.get('goalText')||'';
 function renderGoalCard(){
   const el=document.getElementById('goal-display');
   if(!el)return;
-  const hint=document.querySelector('#goal-card .goal-edit-hint');
   if(goalText){
     el.innerHTML=goalText.replace(/\n/g,'<br>');
     el.className='goal-text';
-    if(hint)hint.style.display='none';
   } else {
     el.innerHTML='🎯 目標を入力してください';
     el.className='goal-placeholder';
-    if(hint)hint.style.display='';
   }
 }
 function startGoalEdit(){
   const card=document.getElementById('goal-card');
   if(!card)return;
-  const hint=card.querySelector('.goal-edit-hint');
-  if(hint)hint.style.display='none';
   const disp=document.getElementById('goal-display');
   if(disp)disp.style.display='none';
   // すでに入力中なら何もしない
@@ -1104,7 +1108,6 @@ function saveGoalEdit(val){
   const card=document.getElementById('goal-card');
   if(card){
     const ta=card.querySelector('.goal-input');if(ta)ta.remove();
-    const hint=card.querySelector('.goal-edit-hint');if(hint)hint.style.display='';
     const disp=document.getElementById('goal-display');if(disp)disp.style.display='';
   }
   renderGoalCard();
@@ -1234,7 +1237,9 @@ function renderSessEx(){
       const maxKgPlate=Math.max(...prevEx.sets.map(s=>s.kg||0));
       const maxKgTotal=maxKgPlate+(prevBarAdd>0?prevBarAdd:0);
       const topReps=parseInt(prevEx.sets.find(s=>s.kg===maxKgPlate)?.reps||1);
-      const rmVal=maxKgTotal>0?Math.round(maxKgTotal*(1+topReps/30)):0;
+      const prevExMaster=masterDB.find(e=>e.n===prevEx.n);
+      const machineCorr=prevExMaster?.machine?0.9:1.0;
+      const rmVal=maxKgTotal>0?Math.round(maxKgTotal*(1+topReps/30)*machineCorr):0;
       const rec80=rmVal>0?Math.round(rmVal*0.8*2)/2:0; // 筋肥大 80%
       const rec85=rmVal>0?Math.round(rmVal*0.85*2)/2:0; // 筋力 85%
       const rm=rmVal>0?`<span style="font-size:12px;color:var(--go);margin-left:6px">1RM≈${rmVal}kg</span>`:'';
@@ -1812,7 +1817,7 @@ function toggleExGraph(idx){
         ex.sets.forEach(s=>{
           const kg=s.kg||0,rp=parseInt(s.reps||0);
           if(kg>grouped[k].maxKg)grouped[k].maxKg=kg;
-          if(rp>0){const rm=Math.round(kg*(1+rp/30));if(rm>grouped[k].rm)grouped[k].rm=rm;}
+          if(rp>0){const exM=masterDB.find(e=>e.n===ex.n);const mc=exM?.machine?0.9:1.0;const rm=Math.round(kg*(1+rp/30)*mc);if(rm>grouped[k].rm)grouped[k].rm=rm;}
           grouped[k].vol+=(kg)*(rp||1);
         });
         if(ex.sets.length>grouped[k].maxSets)grouped[k].maxSets=ex.sets.length;
@@ -2064,7 +2069,7 @@ function renderHomeCalDet(){
       if(!displaySets.length)return'';
       const maxKg=Math.max(0,...displaySets.map(s=>s.kg||0));
       const topSet=displaySets.find(s=>s.kg===maxKg)||displaySets[0];
-      const rm=maxKg>0?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)):0;
+      const exM2a=masterDB.find(e=>e.n===ex.n);const mc2a=exM2a?.machine?0.9:1.0;const rm=maxKg>0?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)*mc2a):0;
       const rows=displaySets.map((s,si)=>{
         const eqp=ex.equip||'none';
         const bAdd=eqp==='barbell'?(settings.barbell||20)+(settings.collarBarbell??0.5)*2:eqp==='ezbar'?(settings.ezbar||10)+(settings.collarEzbar??0.5)*2:eqp==='dumbbell'?((settings.dumbbell??2))+(settings.collarDumbbell??0):0;
@@ -2158,7 +2163,7 @@ function renderCalDet(){
       if(!displaySets.length)return'';
       const maxKg=Math.max(0,...displaySets.map(s=>s.kg||0));
       const topSet=displaySets.find(s=>s.kg===maxKg)||displaySets[0];
-      const rm=maxKg>0?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)):0;
+      const exM2b=masterDB.find(e=>e.n===ex.n);const mc2b=exM2b?.machine?0.9:1.0;const rm=maxKg>0?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)*mc2b):0;
       const setTable=`<table style="width:100%;border-collapse:collapse;margin-top:4px">
         <thead><tr style="border-bottom:0.5px solid var(--b2)">
           <th style="font-size:11px;color:var(--t3);font-weight:400;text-align:center;padding:2px 4px">SET</th>
@@ -2233,7 +2238,7 @@ function showShareView(globalIdx){
     if(!valid.length)return'';
     const maxKg=Math.max(0,...valid.map(s=>s.kg||0));
     const topSet=valid.find(s=>s.kg===maxKg)||valid[0];
-    const rm=maxKg>0?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)):0;
+    const exM2c=masterDB.find(e=>e.n===ex.n);const mc2c=exM2c?.machine?0.9:1.0;const rm=maxKg>0?Math.round(maxKg*(1+parseInt(topSet.reps||1)/30)*mc2c):0;
     const rows=valid.map((s,i)=>{
       const vol=Math.round((s.kg||0)*parseInt(s.reps||0));
       return`<tr style="border-top:0.5px solid rgba(255,255,255,.08)">
@@ -2559,6 +2564,11 @@ function setDBInt(v){dbInt=v;renderDBInt()}
 let dbIsoMode=false;
 let dbEditId=null;
 let dbEquip='none'; // 'barbell'|'ezbar'|'dumbbell'|'none'
+let dbMachine=false;
+function renderDBMachineBtns(){
+  const el=document.getElementById('db-machine-btns');if(!el)return;
+  el.innerHTML=[{v:false,l:'フリー'},{v:true,l:'マシン'}].map(o=>`<div style="padding:5px 12px;text-align:center;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;border:0.5px solid var(--b2);background:${dbMachine===o.v?'var(--acd)':'var(--bg4)'};color:${dbMachine===o.v?'var(--ac)':'var(--t2)'}" onclick="dbMachine=${o.v};renderDBMachineBtns()">${o.l}</div>`).join('');
+}
 function renderDBEquipBtns(){
   const opts=[{v:'barbell',l:'BB'},{v:'ezbar',l:'EZ'},{v:'dumbbell',l:'DB'},{v:'none',l:'なし'}];
   const el=document.getElementById('db-equip-btns');if(!el)return;
@@ -2581,14 +2591,14 @@ function addDBEx(){
     const secs=parseInt(document.getElementById('db-iso-sec')?.value)||30;
     const holdSec=mins*60+secs;
     const rest=parseInt(document.getElementById('db-iso-rest')?.value)||60;
-    entry={id:dbEditId||'m'+Date.now(),n:name,m:dbMusSel||'—',sets,reps:'キープ',weight:0,restSec:rest,i:dbInt,isometric:true,holdSec,equip:dbEquip};
+    entry={id:dbEditId||'m'+Date.now(),n:name,m:dbMusSel||'—',sets,reps:'キープ',weight:0,restSec:rest,i:dbInt,isometric:true,holdSec,equip:dbEquip,machine:dbMachine};
   } else {
     const sets=parseInt(document.getElementById('db-sets')?.value)||settings.defaultSets||3;
     const reps=(document.getElementById('db-reps')?.value||'10').trim();
     const wDisp=parseFloat(document.getElementById('db-wt')?.value||'0')||0;
     const weight=settings.unit==='lb'?toKg(wDisp):wDisp;
     const rest=parseInt(document.getElementById('db-rest')?.value)||settings.defaultRest||90;
-    entry={id:dbEditId||'m'+Date.now(),n:name,m:dbMusSel||'—',sets,reps,weight,restSec:rest,i:dbInt,isometric:false,equip:dbEquip};
+    entry={id:dbEditId||'m'+Date.now(),n:name,m:dbMusSel||'—',sets,reps,weight,restSec:rest,i:dbInt,isometric:false,equip:dbEquip,machine:dbMachine};
   }
   if(dbEditId){
     const idx=masterDB.findIndex(e=>e.id===dbEditId);
@@ -2608,7 +2618,7 @@ function addDBEx(){
   const ds=document.getElementById('db-sets');if(ds)ds.value=settings.defaultSets||3;
   const dr=document.getElementById('db-rest');if(dr)dr.value=settings.defaultRest||90;
   if(dbIsoMode){toggleIsoMode();}
-  dbMusSel='';dbInt='med';dbEquip='none';renderDBMuscles();renderDBInt();renderDBEquipBtns();renderDBList();
+  dbMusSel='';dbInt='med';dbEquip='none';dbMachine=false;renderDBMuscles();renderDBInt();renderDBEquipBtns();renderDBMachineBtns();renderDBList();
   const btn=document.getElementById('db-ab');if(btn){const o=btn.textContent;btn.textContent='✓';setTimeout(()=>btn.textContent=o,1200)}
 }
 function editDBEx(id){
@@ -2618,6 +2628,7 @@ function editDBEx(id){
   dbMusSel=ex.m;renderDBMuscles();
   dbInt=ex.i||'med';renderDBInt();
   dbEquip=ex.equip||'none';renderDBEquipBtns();
+  dbMachine=ex.machine||false;renderDBMachineBtns();
   document.getElementById('db-add-title').textContent='✏ 種目を編集';
   document.getElementById('db-ab').textContent='更新する';
   document.getElementById('db-edit-cancel').style.display='flex';
@@ -2643,7 +2654,7 @@ function cancelEditDBEx(){
   document.getElementById('db-add-title').textContent='＋ 種目を登録';
   document.getElementById('db-ab').textContent='登録する';
   document.getElementById('db-edit-cancel').style.display='none';
-  dbMusSel='';dbInt='med';dbEquip='none';renderDBMuscles();renderDBInt();renderDBEquipBtns();
+  dbMusSel='';dbInt='med';dbEquip='none';dbMachine=false;renderDBMuscles();renderDBInt();renderDBEquipBtns();renderDBMachineBtns();
 }
 function delDBEx(id){if(!confirm('削除しますか？'))return;masterDB=masterDB.filter(e=>e.id!==id);saveMDB();renderDBList()}
 
@@ -2698,7 +2709,7 @@ function resetAll(){if(!confirm('全データを削除しますか？取り消�
 function reRender(){renderHome();renderSettings();renderDBMuscles();renderDBInt();renderDBFilter();renderDBList();renderHomeCal()}
 
 /* ═══ INIT ═══ */
-renderSettings();renderDBMuscles();renderDBInt();renderDBEquipBtns();renderDBFilter();renderDBList();renderHome();
+renderSettings();renderDBMuscles();renderDBInt();renderDBEquipBtns();renderDBMachineBtns();renderDBFilter();renderDBList();renderHome();
 </script>
 
 </body>
