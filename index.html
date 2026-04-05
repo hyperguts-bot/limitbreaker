@@ -1381,9 +1381,6 @@ function addSessSet(){
   // kg（重量）のみコピー、回数はコピーしない
   ex.sets.push({kg:last.kg,reps:'',cheat:0,assist:0,posNeg:'',note:'',done:false});
   refreshSetRows();
-  // 追加した行のKG入力欄にフォーカス
-  const rows=document.querySelectorAll('#setrows .si-kg');
-  if(rows.length)rows[rows.length-1].focus();
 }
 function delSessSet(i){
   if(!session)return;
