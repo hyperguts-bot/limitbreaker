@@ -137,8 +137,8 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 .rest-timer-info.show{display:flex}
 .excard{background:linear-gradient(135deg,#1a1010,#111);border:0.5px solid rgba(232,89,60,.35);border-radius:11px;padding:9px;margin-bottom:6px;display:flex;flex-direction:column;flex:1;min-height:0}
 /* set grid: SET | KG | TOTAL | REPS | Cheat | Assist | Del */
-.shead3{display:grid;grid-template-columns:18px 1fr 40px 1fr 36px 36px 24px;gap:3px;align-items:center;margin-bottom:2px;flex-shrink:0}
-.srow3{display:grid;grid-template-columns:18px 1fr 40px 1fr 36px 36px 24px;gap:3px;align-items:center;margin-bottom:2px}
+.shead3{display:grid;grid-template-columns:32px 1fr 44px 1fr 38px 38px 26px;gap:3px;align-items:center;margin-bottom:2px;flex-shrink:0}
+.srow3{display:grid;grid-template-columns:32px 1fr 44px 1fr 38px 38px 26px;gap:3px;align-items:stretch;margin-bottom:4px}
 #setrows{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .srow3-note{margin-top:1px;margin-bottom:4px;padding-left:2px}
 .sh{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;text-align:center}
@@ -1200,7 +1200,7 @@ function renderSessEx(){
   document.getElementById('sess-ex-area').innerHTML=`
     <div class="excard">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;gap:4px">
-        <div class="ex-name-big" style="font-size:14px;text-align:left;flex:1">${ex.n}</div>
+        <div class="ex-name-big" style="font-size:clamp(11px,3vw,15px);text-align:left;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ex.n}</div>
         <span style="font-size:13px;color:var(--t3)">${ex.sets.length} sets</span>
       </div>
       <div id="sess-prev-rec" style="margin-top:4px"></div>
@@ -1289,11 +1289,16 @@ function renderSessEx(){
               ${showPlateTarget?`<span style="font-size:10px;color:var(--t3)">プレート</span><span style="font-family:var(--fd);font-size:17px;color:var(--ac);line-height:1">${fmtW(rec85Plate)}</span>`:'<span></span><span></span>'}
             </div>
           </div>
+          ${bestRmVal>0?`<div style="background:var(--bg3);border:0.5px solid rgba(242,166,35,.5);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px">
+            <div style="font-size:9px;color:var(--t3);margin-bottom:2px;letter-spacing:.5px">推定1RM</div>
+            <div style="font-family:var(--fd);font-size:20px;color:#F2A623;line-height:1">${bestRmVal}</div>
+            <div style="font-size:9px;color:var(--t3);margin-top:1px">kg</div>
+          </div>`:''}
         </div>
       </div>`:'';
       if(rmEl)rmEl.innerHTML=suggest;
       prevEl.innerHTML=`<div style="background:var(--bg2);border:0.5px solid var(--b);border-radius:8px;padding:7px 10px">
-        <div style="font-size:11px;color:var(--t3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px">前回 ${dStr}${rmBadge}</div>
+        <div style="font-size:11px;color:var(--t3);letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px">前回 ${dStr}</div>
         <div style="display:flex;flex-wrap:wrap;gap:3px">${setRows}</div>
       </div>`;
     } else {
@@ -1313,10 +1318,16 @@ function refreshSetRows(){
     const posNeg=s.posNeg||'';
     return`
     <div class="srow3 set-data-row" data-idx="${i}">
-      <div class="sn">${i+1}</div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+        <div class="sn">${i+1}</div>
+        <div style="display:flex;flex-direction:column;gap:2px;width:100%">
+          <div data-pn="pos" onclick="setPosNeg(${i},'pos')" style="text-align:center;border-radius:4px;font-size:10px;padding:2px 0;cursor:pointer;border:0.5px solid ${posNeg==='pos'?'rgba(76,175,80,.6)':'var(--b2)'};background:${posNeg==='pos'?'var(--grd)':'var(--bg4)'};color:${posNeg==='pos'?'var(--gr)':'var(--t3)'}">ポジ</div>
+          <div data-pn="neg" onclick="setPosNeg(${i},'neg')" style="text-align:center;border-radius:4px;font-size:10px;padding:2px 0;cursor:pointer;border:0.5px solid ${posNeg==='neg'?'rgba(59,139,212,.6)':'var(--b2)'};background:${posNeg==='neg'?'var(--bld)':'var(--bg4)'};color:${posNeg==='neg'?'var(--bl)':'var(--t3)'}">ネガ</div>
+        </div>
+      </div>
       <input type="number" class="si si-kg" value="${s.kg?toDisp(s.kg):''}" placeholder="—" step="0.5" inputmode="decimal"
         oninput="updateSet(${i},'kg',toKg(parseFloat(this.value)||0))" onfocus="this.select()">
-      <div style="text-align:center;font-size:11px;font-weight:700;color:${bAdd>0&&total?'var(--bl)':'var(--b2)'};line-height:1.1">${bAdd>0&&total?`<span style='font-size:9px;color:var(--t3)'>→</span><br><span>${total}</span>`:'—'}</div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:${bAdd>0&&total?'var(--bl)':'var(--b2)'};line-height:1.2;text-align:center">${bAdd>0&&total?`<span style='font-size:8px;color:var(--t3)'>→</span><span>${total}</span>`:'—'}</div>
       <input type="number" class="si si-rp" value="${s.reps||''}" placeholder="—" min="1" inputmode="numeric"
         oninput="updateSet(${i},'reps',this.value)" onfocus="this.select()">
       <input type="number" class="si" value="${s.cheat||''}" placeholder="0" min="0" inputmode="numeric"
@@ -1325,13 +1336,9 @@ function refreshSetRows(){
         oninput="updateSet(${i},'assist',this.value?parseInt(this.value):0)" onfocus="this.select()">
       <button class="sdel" onclick="delSessSet(${i})" ${canDel?'':'disabled'} style="color:${canDel?'rgba(232,89,60,0.55)':'var(--b2)'};cursor:${canDel?'pointer':'default'}">✕</button>
     </div>
-    <div class="srow3-note" style="display:flex;gap:4px;align-items:center;padding:0 2px 3px">
-      <div style="display:flex;gap:3px;flex-shrink:0">
-        <div data-pn="pos" onclick="setPosNeg(${i},'pos')" style="padding:5px 10px;border-radius:6px;font-size:13px;cursor:pointer;border:0.5px solid ${posNeg==='pos'?'rgba(76,175,80,.6)':'var(--b2)'};background:${posNeg==='pos'?'var(--grd)':'var(--bg4)'};color:${posNeg==='pos'?'var(--gr)':'var(--t3)'}">ポジ</div>
-        <div data-pn="neg" onclick="setPosNeg(${i},'neg')" style="padding:5px 10px;border-radius:6px;font-size:13px;cursor:pointer;border:0.5px solid ${posNeg==='neg'?'rgba(59,139,212,.6)':'var(--b2)'};background:${posNeg==='neg'?'var(--bld)':'var(--bg4)'};color:${posNeg==='neg'?'var(--bl)':'var(--t3)'}">ネガ</div>
-      </div>
+    <div class="srow3-note" style="padding:0 0 4px 35px">
       <input type="text" class="sinote" value="${s.note||''}" placeholder="メモ"
-        oninput="updateSet(${i},'note',this.value)" style="flex:1">
+        oninput="updateSet(${i},'note',this.value)" style="width:100%">
     </div>`;
   }).join('');
 }
@@ -1340,21 +1347,19 @@ function setPosNeg(i,val){
   const cur=session.exs[session.idx].sets[i].posNeg||'';
   session.exs[session.idx].sets[i].posNeg=(cur===val?'':val);
   // ポジ/ネガボタンの色だけ更新
-  const noteRows=document.querySelectorAll('#setrows .srow3-note');
-  if(noteRows[i]){
-    const btns=noteRows[i].querySelectorAll('[data-pn]');
+  const dataRows=document.querySelectorAll('#setrows .set-data-row');
+  if(dataRows[i]){
+    const btns=dataRows[i].querySelectorAll('[data-pn]');
     const posNeg=session.exs[session.idx].sets[i].posNeg;
     if(btns[0]){
       btns[0].style.border=`0.5px solid ${posNeg==='pos'?'rgba(76,175,80,.6)':'var(--b2)'}`;
       btns[0].style.background=posNeg==='pos'?'var(--grd)':'var(--bg4)';
       btns[0].style.color=posNeg==='pos'?'var(--gr)':'var(--t3)';
-      btns[0].style.padding='5px 10px';
     }
     if(btns[1]){
       btns[1].style.border=`0.5px solid ${posNeg==='neg'?'rgba(59,139,212,.6)':'var(--b2)'}`;
       btns[1].style.background=posNeg==='neg'?'var(--bld)':'var(--bg4)';
       btns[1].style.color=posNeg==='neg'?'var(--bl)':'var(--t3)';
-      btns[1].style.padding='5px 10px';
     }
   }
 }
@@ -1371,7 +1376,7 @@ function updateSet(i,key,val){
       const plate=val?toDisp(val):0;
       const total=bAdd>0?(+plate+bAdd).toFixed(1).replace(/\.0$/,''):'';
       const totEl=rows[i].children[2];
-      if(totEl)totEl.innerHTML=bAdd>0&&total?`<span style='font-size:9px;color:var(--t3)'>→</span><br><span>${total}</span>`:'—';
+      if(totEl)totEl.innerHTML=bAdd>0&&total?`<span style='font-size:8px;color:var(--t3)'>→</span><span>${total}</span>`:'—';
     }
   }
 }
