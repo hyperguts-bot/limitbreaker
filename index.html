@@ -135,11 +135,10 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 .rest-timer-fill{height:100%;background:var(--bl);border-radius:2px;transition:width 1s linear}
 .rest-timer-info{display:none;align-items:center;justify-content:space-between;margin-top:3px}
 .rest-timer-info.show{display:flex}
-.excard{background:linear-gradient(135deg,#1a1010,#111);border:0.5px solid rgba(232,89,60,.35);border-radius:11px;padding:9px;margin-bottom:6px;display:flex;flex-direction:column;flex:1;min-height:0}
+.excard{background:linear-gradient(135deg,#1a1010,#111);border:0.5px solid rgba(232,89,60,.35);border-radius:11px;padding:9px;margin-bottom:4px;flex-shrink:0}
 /* set grid: SET | KG | TOTAL | REPS | Cheat | Assist | Del */
 .shead3{display:grid;grid-template-columns:24px 1.2fr 1.2fr 1fr 1fr 1fr 28px;gap:3px;align-items:center;margin-bottom:2px;flex-shrink:0}
 .srow3{display:grid;grid-template-columns:24px 1.2fr 1.2fr 1fr 1fr 1fr 28px;gap:3px;align-items:stretch;margin-bottom:4px}
-#setrows{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .srow3-note{margin-top:1px;margin-bottom:4px;padding-left:2px}
 .sh{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;text-align:center}
 .sn{font-family:var(--fd);font-size:13px;color:var(--t3);text-align:center}
@@ -443,7 +442,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 </div>
 
 <!-- SESSION -->
-<div class="sc" id="sc-session" style="padding:0">
+<div class="sc" id="sc-session" style="padding:0;overflow:hidden">
   <div class="sess-top">
     <div class="sess-hdr">
       <div><div class="sess-name" id="sess-name">—</div><div class="sess-elapsed" id="sess-elapsed">0:00</div></div>
@@ -483,7 +482,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
         </div>
       </div>
     </div>
-    <div id="sess-ex-area" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column"></div>
+    <div id="sess-ex-area" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden"></div>
 
   </div>
 </div>
@@ -1219,12 +1218,14 @@ function renderSessEx(){
   const exEquip=(ex.equip)||'none';
   const barAdd=getBarAdd(exEquip);
   document.getElementById('sess-ex-area').innerHTML=`
-    <div class="excard">
+    <div class="excard" style="flex-shrink:0;flex:0 0 auto">
       <div id="sess-prev-rec" style="margin-top:4px"></div>
+    </div>
+    <div style="flex-shrink:0;padding:4px 2px 2px">
       <div class="shead3"><div class="sh">SET</div><div class="sh">${settings.unit==="lb"?"LBS":"KG"}<div style="font-size:9px;line-height:1;color:var(--t3);margin-top:1px">${exEquip==="barbell"?"プレート":exEquip==="dumbbell"?"片側":""}</div></div><div class="sh" style="font-size:11px;color:${exEquip!=="none"?"var(--bl)":"var(--b2)"}">${exEquip!=="none"?"総重量<div style=\"font-size:9px;line-height:1;color:var(--t3);margin-top:1px\">バー含む</div>":"—"}</div><div class="sh">REP</div><div class="sh" style="font-size:9px;letter-spacing:0">チート</div><div class="sh" style="font-size:9px;letter-spacing:0">補助</div><div></div></div>
-      <div id="setrows"></div>
-      <button class="addsb" onclick="addSessSet()">＋ セット追加</button>
-    </div>`;
+    </div>
+    <div id="setrows" style="flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 2px"></div>
+    <button class="addsb" onclick="addSessSet()" style="flex-shrink:0;margin:4px 2px 2px">＋ セット追加</button>`;
   const rmEl=document.getElementById("rm-target-area");
   if(rmEl)rmEl.innerHTML="";
   refreshSetRows();
