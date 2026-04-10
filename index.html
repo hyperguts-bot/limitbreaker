@@ -14,12 +14,6 @@
 if("serviceWorker" in navigator){
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/limitbreaker/sw.js");
-    // SWからTIMER_FIREDを受信したとき音声再生（フォアグラウンド補完）
-    navigator.serviceWorker.addEventListener('message', e=>{
-      if(e.data&&e.data.type==='TIMER_FIRED'){
-        if(!_alarmFired){_alarmFired=true;playAlarm();}
-      }
-    });
   });
 }
 </script>
@@ -1556,7 +1550,6 @@ function toggleInlineTimer(){
   if(Notification&&Notification.permission==='default')Notification.requestPermission();
   inlineTimerCur=restSec;inlineTimerTot=restSec;inlineTimerRunning=true;_alarmFired=false;
   inlineTimerEnd=Date.now()+restSec*1000;
-  _swTimerPost({type:'TIMER_START',endAt:inlineTimerEnd});
   const bar=document.getElementById('rest-timer-bar');
   const info=document.getElementById('rest-timer-info');
   const btn=document.getElementById('rest-go-btn');
@@ -1569,7 +1562,6 @@ function toggleInlineTimer(){
 }
 function stopInlineTimer(){
   clearInterval(inlineTimerI);inlineTimerRunning=false;inlineTimerCur=0;inlineTimerEnd=0;_alarmFired=false;
-  _swTimerPost({type:'TIMER_CANCEL'});
   const bar=document.getElementById('rest-timer-bar');
   const info=document.getElementById('rest-timer-info');
   const btn=document.getElementById('rest-go-btn');
@@ -1584,9 +1576,8 @@ function toggleInlineTimerPause(){
   const pb=document.getElementById('rest-timer-pause');
   if(inlineTimerRunning){
     inlineTimerEnd=Date.now()+inlineTimerCur*1000;
-    _swTimerPost({type:'TIMER_START',endAt:inlineTimerEnd});
     if(pb)pb.textContent='⏸';startInlineTI();
-  }else{_swTimerPost({type:'TIMER_CANCEL'});if(pb)pb.textContent='▶';clearInterval(inlineTimerI);}
+  }else{if(pb)pb.textContent='▶';clearInterval(inlineTimerI);}
 }
 function updateInlineBar(cur,tot){
   const fill=document.getElementById('rest-timer-fill');
@@ -1601,26 +1592,9 @@ function startInlineTI(){
     if(inlineTimerCur<=0){clearInterval(inlineTimerI);if(!_alarmFired){_alarmFired=true;playAlarm();_notifyTimerEnd();}setTimeout(stopInlineTimer,1200);}
   },500);
 }
-// SW へタイマーメッセージを送信するヘルパー
-async function _swTimerPost(msg){
-  if(!('serviceWorker' in navigator))return;
-  try{
-    const reg=await navigator.serviceWorker.getRegistration();
-    if(reg&&reg.active)reg.active.postMessage(msg);
-  }catch(e){}
-}
-// フォアグラウンド時の補完通知（SW側がshowNotificationを担当するため基本不要）
 function _notifyTimerEnd(){
-  if(!('serviceWorker' in navigator)||Notification.permission!=='granted')return;
-  if(document.visibilityState==='visible'){
-    navigator.serviceWorker.getRegistration().then(reg=>{
-      if(reg)reg.showNotification('LimitBreaker 💪',{
-        body:'レスト終了！次のセットを開始してください',
-        icon:'/limitbreaker/icon-192.png',
-        tag:'rest-end',
-        requireInteraction:false
-      });
-    }).catch(()=>{});
+  if(Notification&&Notification.permission==='granted'){
+    try{new Notification('LimitBreaker',{body:'レスト終了！次のセットを開始してください',icon:'/limitbreaker/icon-192.png',tag:'rest-end',requireInteraction:false});}catch(e){}
   }
 }
 // バックグラウンドから復帰時に時間を補正
@@ -2335,6 +2309,7 @@ function renderHomeCalDet(){
 }
 function loadRecordToSession(globalIdx){
   const r=records[globalIdx];if(!r)return;
+  if(session&&!confirm('現在のワークアウト記録は保存されません。続行しますか？'))return;
   // IDがなければ付与
   if(!r._id)r._id='r'+Math.random().toString(36).slice(2);
   // 重量・回数・メモをすべて引き継ぐ（再開/修正モード）
