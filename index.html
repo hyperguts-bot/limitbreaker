@@ -1620,35 +1620,17 @@ function playAlarm(){
   if(sound==='off'){if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);return;}
   if(sound!=='beep'){
     try{
-      const phrases={
-        go:['Go!','Go! Go! Go!','Come on, Go!'],
-        herewego:['Here we go!','Here we GO, let\'s crush it!','Here we go, push hard!'],
-        letsgo:["Let's go!",'Let\'s GO! You got this!','Let\'s GO, push through!'],
-        letsdothis:["Let's do this!",'Let\'s DO THIS, beast mode!',"Let's do this, no excuses!"]
+      const g=settings.timerVoiceGender==='male'?'m':'w';
+      const fileMap={
+        go:'01.go',
+        herewego:'02.here we go',
+        letsgo:"03.let's go",
+        letsdothis:g==='m'?'04.go for it':'04.ready go'
       };
-      const list=phrases[sound]||phrases.go;
-      const msg=list[Math.floor(Math.random()*list.length)];
-      const u=new SpeechSynthesisUtterance(msg);
-      u.lang='en-US';
-      u.rate=1.1;
-      u.pitch=settings.timerVoiceGender==='male'?0.7:1.2;
-      u.volume=1;
-      const speak=()=>{
-        const voices=window.speechSynthesis.getVoices();
-        if(voices.length>0){
-          const lang=voices.filter(v=>v.lang.startsWith('en'));
-          const genVoices=lang.filter(v=>settings.timerVoiceGender==='male'?
-            /male|man|david|mark|daniel|james|guy/i.test(v.name):
-            /female|woman|samantha|karen|victoria|alice|zira/i.test(v.name));
-          if(genVoices.length>0)u.voice=genVoices[0];
-          else if(lang.length>0)u.voice=lang[0];
-        }
-        if(window.speechSynthesis.paused)window.speechSynthesis.resume();
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      };
-      if(window.speechSynthesis.getVoices().length>0){speak();}
-      else{window.speechSynthesis.onvoiceschanged=speak;}
+      const key=fileMap[sound]||fileMap.go;
+      const audio=new Audio(`/limitbreaker/sounds/${g}${key}.wav`);
+      audio.volume=1;
+      audio.play().catch(()=>{});
     }catch(e){}
     if(navigator.vibrate)navigator.vibrate([100,50,100,50,200]);
     return;
@@ -2312,7 +2294,10 @@ function loadRecordToSession(globalIdx){
   // IDがなければ付与
   if(!r._id)r._id='r'+Math.random().toString(36).slice(2);
   // 重量・回数・メモをすべて引き継ぐ（再開/修正モード）
-  sessExercises=JSON.parse(JSON.stringify(r.exercises));
+  sessExercises=r.exercises.map(ex=>({
+    ...ex,
+    sets:ex.sets.map(s=>({kg:s.kg,reps:s.reps||'',note:s.note||'',done:s.done||false,cheat:s.cheat||false}))
+  }));
   sessIdx=0;sessName=r.progName||'ワークアウト';sessStart=Date.now();
   // 累積時間：前回のelapsedを引き継いでstartを過去にオフセット
   const prevElapsed=(r.elapsed||0)*60000;
@@ -2847,7 +2832,8 @@ function renderSettings(){
   const vc=document.getElementById('vol-cheat');if(vc)vc.checked=!!settings.volCheat;
   const va=document.getElementById('vol-assist');if(va)va.checked=!!settings.volAssist;
   // timer sound
-  const SOUNDS=[{id:'off',l:'🔕 オフ'},{id:'beep',l:'🔔 ビープ音'},{id:'go',l:'🗣 "Go!"'},{id:'herewego',l:'🗣 "Here we go!"'},{id:'letsgo',l:'🗣 "Let\'s go!"'},{id:'letsdothis',l:'🗣 "Let\'s do this!"'}];
+  const isMale=settings.timerVoiceGender==='male';
+  const SOUNDS=[{id:'off',l:'🔕 オフ'},{id:'beep',l:'🔔 ビープ音'},{id:'go',l:'🗣 "Go!"'},{id:'herewego',l:'🗣 "Here we go!"'},{id:'letsgo',l:'🗣 "Let\'s go!"'},{id:'letsdothis',l:isMale?'🗣 "Go for it!"':'🗣 "Ready, go!"'}];
   const tsEl=document.getElementById('timer-sound-btns');
   if(tsEl)tsEl.innerHTML=`
     <div style="display:flex;gap:6px;margin-bottom:8px">
