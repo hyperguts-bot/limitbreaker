@@ -804,6 +804,16 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 </div>
 
 <!-- DELETE EXERCISE CONFIRM MODAL -->
+<div class="bottom-pop" id="cancel-session-confirm-modal">
+  <div class="bp-box">
+    <div class="bp-handle"></div>
+    <div style="font-family:var(--fd);font-size:15px;letter-spacing:1.5px;color:var(--te);margin-bottom:6px">ワークアウトをキャンセル？</div>
+    <div style="font-size:13px;color:var(--t3);margin-bottom:14px">入力中のデータは保存されません</div>
+    <button onclick="confirmCancelSession()" style="width:100%;padding:10px;background:rgba(232,89,60,.16);border:0.5px solid rgba(232,89,60,.5);border-radius:8px;font-family:var(--fd);font-size:16px;letter-spacing:1px;color:rgba(232,89,60,.95);cursor:pointer;margin-bottom:6px">キャンセルする</button>
+    <button onclick="closeModal('cancel-session-confirm-modal')" style="width:100%;padding:10px;background:var(--bg3);border:0.5px solid var(--b2);border-radius:8px;font-family:var(--fd);font-size:15px;letter-spacing:1px;color:var(--t2);cursor:pointer">戻る</button>
+  </div>
+</div>
+
 <div class="bottom-pop" id="del-ex-confirm-modal">
   <div class="bp-box">
     <div class="bp-handle"></div>
@@ -1232,7 +1242,7 @@ function renderSessEx(){
   const prevEl=document.getElementById('sess-prev-rec');
   if(prevEl){
     const exName=ex.n;
-    const prevRecs=[...records].sort((a,b)=>new Date(b.date)-new Date(a.date));
+    const prevRecs=[...records].filter(r=>!session._editId||r._id!==session._editId).sort((a,b)=>new Date(b.date)-new Date(a.date));
     let prevEx=null,prevDate=null;
     for(const r of prevRecs){
       const found=r.exercises.find(e=>e.n===exName);
@@ -1467,6 +1477,15 @@ function addExToSess(mid){
 }
 
 function cancelSession(){
+  const hasInput=session&&session.exs&&session.exs.some(ex=>ex.sets&&ex.sets.some(s=>parseInt(s.reps||0)>0));
+  if(hasInput){openModal('cancel-session-confirm-modal');return;}
+  _doCancelSession();
+}
+function confirmCancelSession(){
+  closeModal('cancel-session-confirm-modal');
+  _doCancelSession();
+}
+function _doCancelSession(){
   session=null;
   sessExercises=[];
   clearInterval(elapsedI);
@@ -1543,11 +1562,12 @@ async function getAudioCtx(){
   if(_audioCtx.state==="suspended")await _audioCtx.resume();
   return _audioCtx;
 }
-let inlineTimerI=null,inlineTimerCur=0,inlineTimerTot=0,inlineTimerRunning=false,inlineTimerEnd=0,_alarmFired=false;
+let inlineTimerI=null,inlineTimerCur=0,inlineTimerTot=0,inlineTimerRunning=false,inlineTimerEnd=0,_alarmFired=false,_bgNotifyTO=null;
 function toggleInlineTimer(){
   if(inlineTimerRunning||inlineTimerCur>0){stopInlineTimer();return;}
   try{getAudioCtx();}catch(e){}
-  if(Notification&&Notification.permission==='default')Notification.requestPermission();
+  if(Notification&&Notification.permission==='default')Notification.requestPermission().then(()=>{_scheduleBgNotify(restSec);});
+  else{_scheduleBgNotify(restSec);}
   inlineTimerCur=restSec;inlineTimerTot=restSec;inlineTimerRunning=true;_alarmFired=false;
   inlineTimerEnd=Date.now()+restSec*1000;
   const bar=document.getElementById('rest-timer-bar');
@@ -1560,8 +1580,22 @@ function toggleInlineTimer(){
   const cntEl=document.getElementById('rest-timer-cnt');if(cntEl)cntEl.textContent=inlineTimerCur;
   startInlineTI();
 }
+function _scheduleBgNotify(sec){
+  if(_bgNotifyTO){clearTimeout(_bgNotifyTO);_bgNotifyTO=null;}
+  if(!sec||sec<=0)return;
+  _bgNotifyTO=setTimeout(()=>{
+    _bgNotifyTO=null;
+    if(!_alarmFired){
+      _alarmFired=true;
+      _notifyTimerEnd();
+      if(document.visibilityState==='visible')playAlarm();
+    }
+  },sec*1000+300);
+}
 function stopInlineTimer(){
-  clearInterval(inlineTimerI);inlineTimerRunning=false;inlineTimerCur=0;inlineTimerEnd=0;_alarmFired=false;
+  clearInterval(inlineTimerI);
+  if(_bgNotifyTO){clearTimeout(_bgNotifyTO);_bgNotifyTO=null;}
+  inlineTimerRunning=false;inlineTimerCur=0;inlineTimerEnd=0;_alarmFired=false;
   const bar=document.getElementById('rest-timer-bar');
   const info=document.getElementById('rest-timer-info');
   const btn=document.getElementById('rest-go-btn');
@@ -1576,8 +1610,9 @@ function toggleInlineTimerPause(){
   const pb=document.getElementById('rest-timer-pause');
   if(inlineTimerRunning){
     inlineTimerEnd=Date.now()+inlineTimerCur*1000;
+    _scheduleBgNotify(inlineTimerCur);
     if(pb)pb.textContent='⏸';startInlineTI();
-  }else{if(pb)pb.textContent='▶';clearInterval(inlineTimerI);}
+  }else{if(pb)pb.textContent='▶';clearInterval(inlineTimerI);if(_bgNotifyTO){clearTimeout(_bgNotifyTO);_bgNotifyTO=null;}}
 }
 function updateInlineBar(cur,tot){
   const fill=document.getElementById('rest-timer-fill');
@@ -1620,17 +1655,35 @@ function playAlarm(){
   if(sound==='off'){if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);return;}
   if(sound!=='beep'){
     try{
-      const g=settings.timerVoiceGender==='male'?'m':'w';
-      const fileMap={
-        go:'01.go',
-        herewego:'02.here we go',
-        letsgo:"03.let's go",
-        letsdothis:g==='m'?'04.go for it':'04.ready go'
+      const phrases={
+        go:['Go!','Go! Go! Go!','Come on, Go!'],
+        herewego:['Here we go!','Here we GO, let\'s crush it!','Here we go, push hard!'],
+        letsgo:["Let's go!",'Let\'s GO! You got this!','Let\'s GO, push through!'],
+        letsdothis:["Let's do this!",'Let\'s DO THIS, beast mode!',"Let's do this, no excuses!"]
       };
-      const key=fileMap[sound]||fileMap.go;
-      const audio=new Audio(`/limitbreaker/sounds/${g}${key}.wav`);
-      audio.volume=1;
-      audio.play().catch(()=>{});
+      const list=phrases[sound]||phrases.go;
+      const msg=list[Math.floor(Math.random()*list.length)];
+      const u=new SpeechSynthesisUtterance(msg);
+      u.lang='en-US';
+      u.rate=1.1;
+      u.pitch=settings.timerVoiceGender==='male'?0.7:1.2;
+      u.volume=1;
+      const speak=()=>{
+        const voices=window.speechSynthesis.getVoices();
+        if(voices.length>0){
+          const lang=voices.filter(v=>v.lang.startsWith('en'));
+          const genVoices=lang.filter(v=>settings.timerVoiceGender==='male'?
+            /male|man|david|mark|daniel|james|guy/i.test(v.name):
+            /female|woman|samantha|karen|victoria|alice|zira/i.test(v.name));
+          if(genVoices.length>0)u.voice=genVoices[0];
+          else if(lang.length>0)u.voice=lang[0];
+        }
+        if(window.speechSynthesis.paused)window.speechSynthesis.resume();
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(u);
+      };
+      if(window.speechSynthesis.getVoices().length>0){speak();}
+      else{window.speechSynthesis.onvoiceschanged=speak;}
     }catch(e){}
     if(navigator.vibrate)navigator.vibrate([100,50,100,50,200]);
     return;
@@ -2490,6 +2543,7 @@ function delCalRecord(idx){
   records.splice(idx,1);
   saveRecs();renderCal();renderHome();renderHomeCal();
   renderCalDet();renderHomeCalDet();
+  if(session)renderSessEx();
 }
 function delCalEx(recIdx,exIdx){
   const recs=records.filter(r=>dateKey(r.date)===calSel);
@@ -2502,6 +2556,7 @@ function delCalEx(recIdx,exIdx){
   records[globalIdx].totalVol=Math.round(newVol);
   if(!records[globalIdx].exercises.length)records.splice(globalIdx,1);
   saveRecs();renderCal();renderHome();renderHomeCal();
+  if(session)renderSessEx();
 }
 
 /* ═══ BODY ═══ */
@@ -2832,8 +2887,7 @@ function renderSettings(){
   const vc=document.getElementById('vol-cheat');if(vc)vc.checked=!!settings.volCheat;
   const va=document.getElementById('vol-assist');if(va)va.checked=!!settings.volAssist;
   // timer sound
-  const isMale=settings.timerVoiceGender==='male';
-  const SOUNDS=[{id:'off',l:'🔕 オフ'},{id:'beep',l:'🔔 ビープ音'},{id:'go',l:'🗣 "Go!"'},{id:'herewego',l:'🗣 "Here we go!"'},{id:'letsgo',l:'🗣 "Let\'s go!"'},{id:'letsdothis',l:isMale?'🗣 "Go for it!"':'🗣 "Ready, go!"'}];
+  const SOUNDS=[{id:'off',l:'🔕 オフ'},{id:'beep',l:'🔔 ビープ音'},{id:'go',l:'🗣 "Go!"'},{id:'herewego',l:'🗣 "Here we go!"'},{id:'letsgo',l:'🗣 "Let\'s go!"'},{id:'letsdothis',l:'🗣 "Let\'s do this!"'}];
   const tsEl=document.getElementById('timer-sound-btns');
   if(tsEl)tsEl.innerHTML=`
     <div style="display:flex;gap:6px;margin-bottom:8px">
