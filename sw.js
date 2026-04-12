@@ -30,31 +30,38 @@ self.addEventListener('fetch', e => {
 // バックグラウンドタイマー通知
 let _timerTO = null;
 
+function _showRestNotification(body) {
+  self.registration.showNotification('LimitBreaker ⏱', {
+    body: body || 'レスト終了！次のセットを開始してください',
+    icon: '/limitbreaker/icon-192.png',
+    badge: '/limitbreaker/icon-192.png',
+    tag: 'rest-end-' + Date.now(),
+    requireInteraction: true,
+    vibrate: [300, 100, 300, 100, 500],
+    silent: false
+  }).catch(() => {});
+}
+
 self.addEventListener('message', e => {
   const data = e.data;
   if (!data) return;
 
   if (data.type === 'SCHEDULE_TIMER') {
-    // 既存のタイマーをキャンセル
     if (_timerTO) { clearTimeout(_timerTO); _timerTO = null; }
     const delay = data.delayMs;
     if (!delay || delay <= 0) return;
     _timerTO = setTimeout(() => {
       _timerTO = null;
-      self.registration.showNotification('LimitBreaker ⏱', {
-        body: data.body || 'レスト終了！次のセットを開始してください',
-        icon: '/limitbreaker/icon-192.png',
-        badge: '/limitbreaker/icon-192.png',
-        tag: 'rest-end',
-        requireInteraction: true,
-        vibrate: [300, 100, 300, 100, 500],
-        silent: false
-      }).catch(() => {});
+      _showRestNotification(data.body);
     }, delay);
   }
 
   if (data.type === 'CANCEL_TIMER') {
     if (_timerTO) { clearTimeout(_timerTO); _timerTO = null; }
+  }
+
+  if (data.type === 'NOTIFY_NOW') {
+    _showRestNotification(data.body);
   }
 });
 
