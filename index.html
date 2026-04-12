@@ -1620,14 +1620,12 @@ function updateInlineBar(cur,tot){
   if(fill){fill.style.width=(tot>0?Math.max(cur/tot*100,0):0)+'%';fill.style.background=cur<=3?'var(--ac)':'var(--bl)';}
 }
 function _fireAlarm(){
-  // 0になった瞬間のvisibilityで判定・1回だけ発火
   if(_alarmFired)return;
   _alarmFired=true;
-  if(document.visibilityState==='visible'){
-    // フォアグラウンド：音のみ
-    playAlarm();
-  }else{
-    // バックグラウンド：通知のみ（SW経由）
+  // フォア・バック問わず音を鳴らす
+  playAlarm();
+  // バックグラウンド時は通知も出す
+  if(document.visibilityState!=='visible'){
     _postSW({type:'NOTIFY_NOW',body:'レスト終了！次のセットを開始してください'});
   }
 }
@@ -1662,41 +1660,21 @@ function playAlarm(){
   const sound=settings.timerSound||'beep';
   if(sound==='off'){if(navigator.vibrate)navigator.vibrate([200,100,200,100,400]);return;}
   if(sound!=='beep'){
+    const gender=(settings.timerVoiceGender||'female')==='male'?'m':'w';
+    const fileMap={go:'01.go',herewego:'02.here we go',letsgo:"03.let's go",letsdothis:'04.go for it'};
+    // female版はw04のみ"ready go"
+    const femaleMap={letsdothis:'04.ready go'};
+    const base=gender==='w'&&femaleMap[sound]?femaleMap[sound]:(fileMap[sound]||'01.go');
+    const url=`/limitbreaker/sounds/${gender}${base}.wav`;
     try{
-      const phrases={
-        go:['Go!','Go! Go! Go!','Come on, Go!'],
-        herewego:['Here we go!','Here we GO, let\'s crush it!','Here we go, push hard!'],
-        letsgo:["Let's go!",'Let\'s GO! You got this!','Let\'s GO, push through!'],
-        letsdothis:["Let's do this!",'Let\'s DO THIS, beast mode!',"Let's do this, no excuses!"]
-      };
-      const list=phrases[sound]||phrases.go;
-      const msg=list[Math.floor(Math.random()*list.length)];
-      const u=new SpeechSynthesisUtterance(msg);
-      u.lang='en-US';
-      u.rate=1.1;
-      u.pitch=settings.timerVoiceGender==='male'?0.7:1.2;
-      u.volume=1;
-      const speak=()=>{
-        const voices=window.speechSynthesis.getVoices();
-        if(voices.length>0){
-          const lang=voices.filter(v=>v.lang.startsWith('en'));
-          const genVoices=lang.filter(v=>settings.timerVoiceGender==='male'?
-            /male|man|david|mark|daniel|james|guy/i.test(v.name):
-            /female|woman|samantha|karen|victoria|alice|zira/i.test(v.name));
-          if(genVoices.length>0)u.voice=genVoices[0];
-          else if(lang.length>0)u.voice=lang[0];
-        }
-        if(window.speechSynthesis.paused)window.speechSynthesis.resume();
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      };
-      if(window.speechSynthesis.getVoices().length>0){speak();}
-      else{window.speechSynthesis.onvoiceschanged=speak;}
+      const a=new Audio(url);
+      a.volume=1;
+      a.play().catch(()=>{});
     }catch(e){}
     if(navigator.vibrate)navigator.vibrate([100,50,100,50,200]);
     return;
   }
-  // beep: AudioContext.resume() は非同期なので .then() で待ってから鳴らす
+  // beep
   getAudioCtx().then(ctx=>{
     const playBeepSet=(offset=0)=>{
       const beep=(freq,start,dur)=>{
@@ -2895,7 +2873,7 @@ function renderSettings(){
   const vc=document.getElementById('vol-cheat');if(vc)vc.checked=!!settings.volCheat;
   const va=document.getElementById('vol-assist');if(va)va.checked=!!settings.volAssist;
   // timer sound
-  const SOUNDS=[{id:'off',l:'🔕 オフ'},{id:'beep',l:'🔔 ビープ音'},{id:'go',l:'🗣 "Go!"'},{id:'herewego',l:'🗣 "Here we go!"'},{id:'letsgo',l:'🗣 "Let\'s go!"'},{id:'letsdothis',l:'🗣 "Let\'s do this!"'}];
+  const SOUNDS=[{id:'off',l:'🔕 オフ'},{id:'beep',l:'🔔 ビープ音'},{id:'go',l:'🗣 "Go!"'},{id:'herewego',l:'🗣 "Here we go!"'},{id:'letsgo',l:"🗣 \"Let's go!\""},{id:'letsdothis',l:'🗣 "Go for it!" / "Ready, go!"'}];
   const tsEl=document.getElementById('timer-sound-btns');
   if(tsEl)tsEl.innerHTML=`
     <div style="display:flex;gap:6px;margin-bottom:8px">
