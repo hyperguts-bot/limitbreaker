@@ -1640,6 +1640,10 @@ function startInlineTI(){
 }
 // 復帰時：表示補正のみ。音・通知は鳴らさない。
 document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'){
+    // 復帰時にrest-end通知を全消去
+    _postSW({type:'CLEAR_NOTIFY'});
+  }
   if(document.visibilityState==='visible'&&inlineTimerRunning&&inlineTimerEnd>0){
     inlineTimerCur=Math.max(0,Math.round((inlineTimerEnd-Date.now())/1000));
     const _c=document.getElementById('rest-timer-cnt');if(_c)_c.textContent=inlineTimerCur;
