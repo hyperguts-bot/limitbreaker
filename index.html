@@ -1257,9 +1257,7 @@ function renderSessEx(){
       const d=new Date(prevDate);
       const dStr=`${d.getMonth()+1}/${d.getDate()}`;
       const setRows=prevEx.sets.filter(s=>parseInt(s.reps||0)>0).map(s=>{
-        const eqp2=prevEx.equip||'none';
-        const bAdd2=getBarAdd(eqp2)*2;
-        const tot=bAdd2>0?`${((s.kg||0)+bAdd2).toFixed(1).replace(/\.0$/,'')}kg`:`${s.kg||0}kg`;
+        const tot=`${(s.kg||0)}kg`;
         const cheatStr=parseInt(s.cheat||0)>0?` +${s.cheat}C`:'';
         const assistStr=parseInt(s.assist||0)>0?` -${s.assist}A`:'';
         return`<span style="background:var(--bg3);border:0.5px solid var(--b);border-radius:4px;padding:1px 5px;font-size:13px;color:var(--t2);white-space:nowrap">${tot}×${s.reps}${cheatStr}${assistStr}</span>`;
