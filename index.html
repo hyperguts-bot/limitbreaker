@@ -720,6 +720,10 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
       <div id="timer-sound-btns" style="display:flex;flex-direction:column;gap:5px"></div>
     </div>
     <div class="card">
+      <div style="font-size:14px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">休憩終了の通知</div>
+      <div id="notif-status"></div>
+    </div>
+    <div class="card">
       <div class="set-row" style="border-bottom:none">
         <div><div class="set-label" id="set-csv-lbl">データエクスポート</div><div class="set-sub" id="set-csv-sub">ワークアウト記録をCSV出力（分析用）</div></div>
         <button class="csv-btn" onclick="exportCSV()" id="set-csv-btn">CSV出力</button>
@@ -740,7 +744,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
       </div>
     </div>
     <button id="set-save-btn" onclick="saveSettingsBtn()" style="width:100%;padding:14px;background:var(--ac);border:none;border-radius:10px;font-family:var(--fd);font-size:20px;letter-spacing:2px;color:#fff;cursor:pointer;margin-top:4px;margin-bottom:4px">✓ 設定を保存</button>
-    <div style="text-align:center;margin-top:8px;font-size:14px;color:var(--t3)">LimitBreaker v17 ⚡</div>
+    <div style="text-align:center;margin-top:8px;font-size:14px;color:var(--t3)">LimitBreaker v18 ⚡</div>
   </div>
 </div>
 
@@ -1723,13 +1727,150 @@ async function getAudioCtx(){
   if(_audioCtx.state==="suspended")await _audioCtx.resume();
   return _audioCtx;
 }
+/* ═══ REST TIMER ═══
+   設計方針（PWA単体で可能な最大限）：
+   - 残り秒のカウントダウンではなく「終了予定時刻(inlineTimerEnd)」を唯一の真実とする。
+     バックグラウンドでJSが止まっても、復帰時に Date.now()>=endAt なら即「終了」と判定する。
+   - システム通知は必ず ServiceWorkerRegistration.showNotification() 経由。
+     Android Chrome では new Notification() が使えないため（これが従来通知が出なかった原因）。
+   - タイマー1本ごとに inlineTimerId を採番し、_notifiedTimerId で「1本につき終了処理1回」を保証する。
+   - Service Worker に長時間 setTimeout は置かない（OS/ブラウザに停止されるため保証にならない）。 */
 let inlineTimerI=null,inlineTimerCur=0,inlineTimerTot=0,inlineTimerRunning=false,inlineTimerEnd=0,_alarmFired=false;
+let inlineTimerId=null;          // このタイマー1本の識別子
+let _notifiedTimerId=null;       // 終了処理済みのタイマーID（二重通知防止の要）
+let inlineTimerTO=null;          // 0秒ちょうどを狙う単発タイマー（intervalの間引き対策）
+let _restEndedPendingUi=null;    // 非表示中に終了したタイマーID（復帰時にオーバーレイを出す）
+const REST_STATE_KEY="restTimer";
+const NOTIF_ASK_KEY="notifAsked";
+const REST_TAG="lb-rest-end";
+
+/* ── 通知権限（初回のみ要求。拒否されても二度と自動では聞かない）── */
+function _notifSupported(){try{return (typeof Notification!=="undefined")&&("serviceWorker" in navigator)}catch(e){return false}}
+function notifPermission(){try{return (typeof Notification!=="undefined")?Notification.permission:"unsupported"}catch(e){return "unsupported"}}
+function ensureNotifPermission(){
+  if(!_notifSupported())return;
+  let asked=false;try{asked=!!S.get(NOTIF_ASK_KEY)}catch(e){}
+  if(asked)return;                                  // 2回目以降は自動要求しない
+  try{S.set(NOTIF_ASK_KEY,true)}catch(e){}
+  if(Notification.permission!=="default")return;    // 既に granted/denied なら聞かない
+  try{
+    const p=Notification.requestPermission();
+    if(p&&typeof p.then==="function")p.then(()=>{try{renderNotifStatus()}catch(e){}}).catch(()=>{});
+  }catch(e){}
+}
+/* 設定画面から明示的に押されたときだけ再要求する */
+function requestNotifPermissionManual(){
+  if(!_notifSupported()){alert("この環境は通知に対応していません。");return}
+  if(Notification.permission==="denied"){
+    alert("通知がブロックされています。\n端末の設定 → アプリ（またはChrome）→ 通知 から LimitBreaker の通知を許可してください。");
+    return;
+  }
+  try{S.set(NOTIF_ASK_KEY,true)}catch(e){}
+  try{
+    const p=Notification.requestPermission();
+    if(p&&typeof p.then==="function")p.then(()=>{try{renderNotifStatus()}catch(e){}}).catch(()=>{});
+  }catch(e){}
+}
+/* バイブレーションは失敗しても他の通知処理を巻き込まない */
+function _vibrate(pattern){try{if(navigator.vibrate)navigator.vibrate(pattern)}catch(e){}}
+
+function showRestNotification(){
+  try{
+    if(notifPermission()!=="granted")return Promise.resolve(false);
+    if(!("serviceWorker" in navigator))return Promise.resolve(false);
+    return navigator.serviceWorker.ready.then(reg=>{
+      if(!reg||!reg.showNotification)return false;
+      const base={
+        body:"休憩終了 — 次のセットへ",
+        icon:"/limitbreaker/icons/icon-192x192.png",
+        badge:"/limitbreaker/icons/icon-192x192.png",
+        tag:REST_TAG,
+        renotify:true,
+        requireInteraction:true,
+        silent:false,
+        data:{url:"/limitbreaker/",kind:"rest-end"}
+      };
+      const withVib=Object.assign({vibrate:[300,120,300,120,500]},base);
+      return reg.showNotification("REST FINISHED",withVib).then(()=>true).catch(()=>
+        // vibrate 未対応でオプションごと弾かれる端末向けのフォールバック
+        reg.showNotification("REST FINISHED",base).then(()=>true).catch(()=>false)
+      );
+    }).catch(()=>false);
+  }catch(e){return Promise.resolve(false)}
+}
+function _clearSystemNotification(){
+  try{
+    if(!("serviceWorker" in navigator))return;
+    navigator.serviceWorker.ready.then(reg=>{
+      try{if(reg.getNotifications)reg.getNotifications({tag:REST_TAG}).then(ns=>ns.forEach(n=>{try{n.close()}catch(e){}})).catch(()=>{});}catch(e){}
+      try{if(navigator.serviceWorker.controller)navigator.serviceWorker.controller.postMessage({type:"CLEAR_NOTIFY",tag:REST_TAG});}catch(e){}
+    }).catch(()=>{});
+  }catch(e){}
+}
+
+/* ── 前面表示中の終了オーバーレイ（ブラウザ通知とは別実装）── */
+function showRestOverlay(){
+  let ov=document.getElementById("rest-over");
+  if(!ov){
+    ov=document.createElement("div");
+    ov.id="rest-over";
+    ov.style.cssText="position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(8,8,10,.94);padding:24px;text-align:center;cursor:pointer";
+    ov.innerHTML='<div style="font-family:var(--fd);font-size:46px;letter-spacing:3px;color:var(--ac);line-height:1.05">REST</div>'+
+      '<div style="font-family:var(--fd);font-size:46px;letter-spacing:3px;color:var(--ac);line-height:1.05;margin-bottom:16px">FINISHED</div>'+
+      '<div style="font-size:21px;font-weight:700;color:var(--te)">次のセットへ</div>'+
+      '<button id="rest-over-ok" style="margin-top:28px;padding:13px 46px;border-radius:10px;border:1px solid rgba(232,89,60,.6);background:var(--acd);color:var(--ac);font-size:17px;font-weight:700;cursor:pointer">OK</button>';
+    document.body.appendChild(ov);
+    ov.addEventListener("click",()=>hideRestOverlay());
+  }
+  ov.style.display="flex";
+}
+function hideRestOverlay(){const ov=document.getElementById("rest-over");if(ov)ov.style.display="none";}
+
+/* ── 状態の永続化（PWAが落ちて再起動しても終了を検知するため）── */
+function _saveRestState(){
+  try{
+    if(inlineTimerRunning&&inlineTimerEnd>0&&inlineTimerId){
+      S.set(REST_STATE_KEY,{id:inlineTimerId,endAt:inlineTimerEnd,total:inlineTimerTot,notified:_notifiedTimerId===inlineTimerId});
+    }else{
+      S.remove(REST_STATE_KEY);
+    }
+  }catch(e){}
+}
+
+/* ── 終了処理：1タイマーにつき必ず1回だけ ── */
+function _fireRestEnd(){
+  if(!inlineTimerId)return;
+  if(_notifiedTimerId===inlineTimerId)return;   // 二重通知防止
+  _notifiedTimerId=inlineTimerId;
+  _alarmFired=true;
+  clearInterval(inlineTimerI);clearTimeout(inlineTimerTO);
+  inlineTimerCur=0;
+  const _c=document.getElementById("rest-timer-cnt");if(_c)_c.textContent=0;
+  updateInlineBar(0,inlineTimerTot);
+  try{S.remove(REST_STATE_KEY)}catch(e){}
+  const visible=(typeof document!=="undefined"&&document.visibilityState==="visible");
+  if(visible){
+    try{playAlarm()}catch(e){}
+    _vibrate([300,120,300,120,500]);
+    showRestOverlay();
+  }else{
+    _restEndedPendingUi=inlineTimerId;   // 復帰時にオーバーレイを出す
+    showRestNotification().then(ok=>{if(!ok){try{playAlarm()}catch(e){}}});
+    _vibrate([300,120,300,120,500]);
+  }
+  const endedId=inlineTimerId;
+  setTimeout(()=>{if(inlineTimerId===endedId)stopInlineTimer();},1200);
+}
+
 function toggleInlineTimer(){
   if(inlineTimerRunning||inlineTimerCur>0){stopInlineTimer();return;}
   try{getAudioCtx();}catch(e){}
-  if(Notification&&Notification.permission==='default')Notification.requestPermission();
+  ensureNotifPermission();
+  hideRestOverlay();_clearSystemNotification();
+  inlineTimerId="t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  _restEndedPendingUi=null;
   inlineTimerCur=restSec;inlineTimerTot=restSec;inlineTimerRunning=true;_alarmFired=false;
-  inlineTimerEnd=Date.now()+restSec*1000;
+  inlineTimerEnd=Date.now()+restSec*1000;      // ← 終了予定時刻を保持
   const bar=document.getElementById('rest-timer-bar');
   const info=document.getElementById('rest-timer-info');
   const btn=document.getElementById('rest-go-btn');
@@ -1738,10 +1879,14 @@ function toggleInlineTimer(){
   if(btn){btn.textContent='■';btn.style.background='var(--ac)';}
   updateInlineBar(inlineTimerCur,inlineTimerTot);
   const cntEl=document.getElementById('rest-timer-cnt');if(cntEl)cntEl.textContent=inlineTimerCur;
+  const pb=document.getElementById('rest-timer-pause');if(pb)pb.textContent='⏸';
   startInlineTI();
+  _saveRestState();
 }
 function stopInlineTimer(){
-  clearInterval(inlineTimerI);inlineTimerRunning=false;inlineTimerCur=0;inlineTimerEnd=0;_alarmFired=false;
+  clearInterval(inlineTimerI);clearTimeout(inlineTimerTO);
+  inlineTimerRunning=false;inlineTimerCur=0;inlineTimerEnd=0;_alarmFired=false;inlineTimerId=null;
+  try{S.remove(REST_STATE_KEY)}catch(e){}
   const bar=document.getElementById('rest-timer-bar');
   const info=document.getElementById('rest-timer-info');
   const btn=document.getElementById('rest-go-btn');
@@ -1752,47 +1897,110 @@ function stopInlineTimer(){
 function closeTimer(){stopInlineTimer();}
 function openTimer(){toggleInlineTimer();}
 function toggleInlineTimerPause(){
+  if(!inlineTimerId)return;
   inlineTimerRunning=!inlineTimerRunning;
   const pb=document.getElementById('rest-timer-pause');
   if(inlineTimerRunning){
     inlineTimerEnd=Date.now()+inlineTimerCur*1000;
-    if(pb)pb.textContent='⏸';startInlineTI();
-  }else{if(pb)pb.textContent='▶';clearInterval(inlineTimerI);}
+    if(pb)pb.textContent='⏸';
+    startInlineTI();_saveRestState();
+  }else{
+    if(pb)pb.textContent='▶';
+    clearInterval(inlineTimerI);clearTimeout(inlineTimerTO);
+    try{S.remove(REST_STATE_KEY)}catch(e){}
+  }
 }
 function updateInlineBar(cur,tot){
   const fill=document.getElementById('rest-timer-fill');
   if(fill){fill.style.width=(tot>0?Math.max(cur/tot*100,0):0)+'%';fill.style.background=cur<=3?'var(--ac)':'var(--bl)';}
 }
 function startInlineTI(){
-  clearInterval(inlineTimerI);
-  inlineTimerI=setInterval(()=>{
+  clearInterval(inlineTimerI);clearTimeout(inlineTimerTO);
+  const tick=()=>{
+    if(!inlineTimerRunning||!inlineTimerEnd)return;
     inlineTimerCur=Math.max(0,Math.round((inlineTimerEnd-Date.now())/1000));
     const _c=document.getElementById('rest-timer-cnt');if(_c)_c.textContent=inlineTimerCur;
     updateInlineBar(inlineTimerCur,inlineTimerTot);
-    if(inlineTimerCur<=0){clearInterval(inlineTimerI);if(!_alarmFired){_alarmFired=true;playAlarm();_notifyTimerEnd();}setTimeout(stopInlineTimer,1200);}
-  },500);
+    if(Date.now()>=inlineTimerEnd)_fireRestEnd();
+  };
+  inlineTimerI=setInterval(tick,500);
+  // 0秒ちょうどを狙う単発タイマー。バックグラウンドでintervalが間引かれても
+  // これが生き残れば時刻どおりに通知できる（保証ではなく成功率を上げるための保険）
+  const remain=Math.max(0,inlineTimerEnd-Date.now());
+  inlineTimerTO=setTimeout(()=>{if(inlineTimerEnd&&Date.now()>=inlineTimerEnd-80)_fireRestEnd();},remain);
 }
-function _notifyTimerEnd(){
-  if(Notification&&Notification.permission==='granted'){
-    try{new Notification('LimitBreaker',{body:'レスト終了！次のセットを開始してください',icon:'/limitbreaker/icon-192.png',tag:'rest-end',requireInteraction:false});}catch(e){}
-  }
-}
-// バックグラウンドから復帰時に時間を補正
+
+/* ── 表示/非表示の切替：終了予定時刻を基準に即判定する ── */
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&inlineTimerRunning&&inlineTimerEnd>0){
+  if(document.visibilityState!=='visible'){_saveRestState();return;}
+  _clearSystemNotification();
+  if(inlineTimerId&&inlineTimerRunning&&inlineTimerEnd>0&&Date.now()>=inlineTimerEnd){
+    _fireRestEnd();               // 復帰した瞬間に終了判定（遅れを持ち越さない）
+    return;
+  }
+  if(_restEndedPendingUi){        // 非表示中に通知済み → 画面にも状態を出す（音は鳴らさない）
+    _restEndedPendingUi=null;
+    showRestOverlay();
+    return;
+  }
+  if(inlineTimerRunning&&inlineTimerEnd>0){
     inlineTimerCur=Math.max(0,Math.round((inlineTimerEnd-Date.now())/1000));
     const _c=document.getElementById('rest-timer-cnt');if(_c)_c.textContent=inlineTimerCur;
     updateInlineBar(inlineTimerCur,inlineTimerTot);
-    if(inlineTimerCur<=0){
-      clearInterval(inlineTimerI);
-      if(!_alarmFired){_alarmFired=true;playAlarm();_notifyTimerEnd();}
-      setTimeout(stopInlineTimer,1200);
-    }else{
-      // intervalがバックグラウンドで止まっている場合に再起動
-      startInlineTI();
-    }
+    startInlineTI();              // 間引かれたintervalを張り直す
   }
 });
+
+/* ── 起動時：PWAが落ちている間に終了していたタイマーを拾う ── */
+function restoreRestTimer(){
+  try{
+    const st=S.get(REST_STATE_KEY);
+    if(!st||!st.endAt||!st.id)return;
+    inlineTimerTot=st.total||restSec;
+    if(Date.now()>=st.endAt){
+      try{S.remove(REST_STATE_KEY)}catch(e){}
+      if(!st.notified){
+        inlineTimerId=st.id;inlineTimerEnd=st.endAt;inlineTimerRunning=true;
+        setTimeout(()=>{_fireRestEnd();},500);
+      }
+      return;
+    }
+    inlineTimerId=st.id;inlineTimerEnd=st.endAt;inlineTimerRunning=true;_alarmFired=false;
+    inlineTimerCur=Math.max(0,Math.round((st.endAt-Date.now())/1000));
+    const bar=document.getElementById('rest-timer-bar');
+    const info=document.getElementById('rest-timer-info');
+    const btn=document.getElementById('rest-go-btn');
+    if(bar)bar.classList.add('show');
+    if(info)info.classList.add('show');
+    if(btn){btn.textContent='■';btn.style.background='var(--ac)';}
+    const cntEl=document.getElementById('rest-timer-cnt');if(cntEl)cntEl.textContent=inlineTimerCur;
+    updateInlineBar(inlineTimerCur,inlineTimerTot);
+    startInlineTI();
+  }catch(e){}
+}
+
+/* ── 設定画面：通知の状態表示 ── */
+function renderNotifStatus(){
+  const el=document.getElementById("notif-status");
+  if(!el)return;
+  const p=notifPermission();
+  if(p==="unsupported"){
+    el.innerHTML='<div style="font-size:13.5px;color:var(--t3);line-height:1.6">この環境は通知に対応していません。<br>バックグラウンドでは休憩終了に気づけない場合があります。</div>';
+    return;
+  }
+  if(p==="granted"){
+    el.innerHTML='<div style="font-size:13.5px;color:var(--gr);line-height:1.6">通知は有効です。<br>他のアプリを見ていても休憩終了をお知らせします（端末の状態により遅れる場合があります）。</div>';
+    return;
+  }
+  if(p==="denied"){
+    el.innerHTML='<div style="font-size:13.5px;color:var(--ac);line-height:1.6">通知が無効です。バックグラウンドでは休憩終了に気づけない場合があります。</div>'+
+      '<div style="font-size:12px;color:var(--t3);margin-top:6px;line-height:1.6">端末の設定 → アプリ（またはChrome）→ 通知 から LimitBreaker の通知を許可してください。</div>';
+    return;
+  }
+  el.innerHTML='<div style="font-size:13.5px;color:var(--t2);line-height:1.6">通知が未設定です。バックグラウンドでは休憩終了に気づけない場合があります。</div>'+
+    '<button onclick="requestNotifPermissionManual()" style="margin-top:8px;width:100%;padding:9px;border-radius:8px;border:0.5px solid rgba(76,175,80,.5);background:var(--grd);color:var(--gr);font-size:14px;font-weight:700;cursor:pointer">通知を許可する</button>';
+}
+
 function setTimerSound(id){settings.timerSound=id;S.set('settings',settings);renderSettings();}
 
 function playAlarm(){
@@ -3056,6 +3264,7 @@ function renderSettings(){
     </div>
     ${SOUNDS.map(s=>`<div onclick="setTimerSound('${s.id}')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;background:${settings.timerSound===s.id?'var(--acd)':'var(--bg3)'};border:0.5px solid ${settings.timerSound===s.id?'rgba(232,89,60,.4)':'var(--b)'}"><div style="width:16px;height:16px;border-radius:50%;border:2px solid ${settings.timerSound===s.id?'var(--ac)':'var(--b2)'};background:${settings.timerSound===s.id?'var(--ac)':'transparent'};flex-shrink:0"></div><span style="font-size:15px;color:${settings.timerSound===s.id?'var(--te)':'var(--t2)'}">${s.l}</span></div>`).join('')}
     <button onclick="playAlarm()" style="margin-top:6px;width:100%;padding:7px;background:var(--bg3);border:0.5px solid var(--b2);border-radius:7px;font-size:14px;color:var(--t2);cursor:pointer">▶ テスト再生</button>`;
+  try{renderNotifStatus()}catch(e){}
 }
 /* ═══ FILE I/O 共通ヘルパー（PWA堅牢化）═══
    - 要素は必ず document.body に append してから click（standalone PWA で detached 要素の click が無視される事例への対策）
@@ -3235,6 +3444,8 @@ function reRender(){renderHome();renderSettings();renderDBMuscles();renderDBInt(
 renderSettings();renderDBMuscles();renderDBInt();renderDBEquipBtns();renderDBMachineBtns();renderDBFilter();renderDBList();renderHome();
 // 未保存のワークアウトが残っていれば復旧を案内する
 try{setTimeout(_showResumeBanner,300);}catch(e){}
+// 休憩タイマーが動作中／終了済みなら復元・終了判定する
+try{restoreRestTimer();}catch(e){}
 </script>
 
 </body>
