@@ -1,5 +1,5 @@
 // LimitBreaker Service Worker
-const CACHE_VERSION = 'lb-v15';
+const CACHE_VERSION = 'lb-v16';
 const CACHE_NAME = CACHE_VERSION;
 
 self.addEventListener('install', event => {

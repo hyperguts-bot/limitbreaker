@@ -304,7 +304,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
 .set-num{width:60px;background:var(--bg4);border:0.5px solid var(--b2);border-radius:6px;padding:5px 8px;color:var(--te);font-family:var(--fb);font-size:30px;text-align:center;outline:none;-moz-appearance:textfield}
 .set-num:focus{border-color:var(--ac)}
 .set-num::-webkit-inner-spin-button,.set-num::-webkit-outer-spin-button{-webkit-appearance:none}
-.csv-btn{padding:7px 14px;background:var(--bld);border:0.5px solid rgba(59,139,212,.4);border-radius:7px;font-family:var(--fd);font-size:24px;letter-spacing:1.5px;color:var(--bl);cursor:pointer}
+.csv-btn{padding:7px 14px;background:var(--bld);border:0.5px solid rgba(59,139,212,.4);border-radius:7px;font-family:var(--fd);font-size:24px;letter-spacing:1.5px;color:var(--bl);cursor:pointer;white-space:nowrap}
 
 /* ═══ POPUPS ═══ */
 .overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.88);z-index:50;align-items:center;justify-content:center;padding:10px}
@@ -721,8 +721,16 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
     </div>
     <div class="card">
       <div class="set-row" style="border-bottom:none">
-        <div><div class="set-label" id="set-csv-lbl">データエクスポート</div><div class="set-sub" id="set-csv-sub">ワークアウト記録をCSV出力</div></div>
-        <button class="csv-btn" onclick="exportCSV()" id="set-csv-btn">CSV出力</button><button class="csv-btn" onclick="importCSV()" style="background:var(--grd);border-color:rgba(76,175,80,.4);color:var(--gr);margin-left:6px">CSV取込</button>
+        <div><div class="set-label" id="set-csv-lbl">データエクスポート</div><div class="set-sub" id="set-csv-sub">ワークアウト記録をCSV出力（分析用）</div></div>
+        <button class="csv-btn" onclick="exportCSV()" id="set-csv-btn">CSV出力</button>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:14px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">データ移行（バックアップ）</div>
+      <div class="set-sub" id="set-backup-sub" style="margin-bottom:8px">機種変更時はこちらを使用します。記録・種目・ルーティン・体組成・設定をまとめて1ファイルで保存／復元します。</div>
+      <div style="display:flex;gap:6px">
+        <button class="csv-btn" onclick="exportBackup()" id="set-backup-btn" style="flex:1;font-size:16px;letter-spacing:0.5px">バックアップ出力</button>
+        <button class="csv-btn" onclick="importBackup()" id="set-restore-btn" style="flex:1;font-size:16px;letter-spacing:0.5px;background:var(--grd);border-color:rgba(76,175,80,.4);color:var(--gr)">バックアップ復元</button>
       </div>
     </div>
     <div class="card">
@@ -732,7 +740,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
       </div>
     </div>
     <button id="set-save-btn" onclick="saveSettingsBtn()" style="width:100%;padding:14px;background:var(--ac);border:none;border-radius:10px;font-family:var(--fd);font-size:20px;letter-spacing:2px;color:#fff;cursor:pointer;margin-top:4px;margin-bottom:4px">✓ 設定を保存</button>
-    <div style="text-align:center;margin-top:8px;font-size:14px;color:var(--t3)">LimitBreaker v12 ⚡</div>
+    <div style="text-align:center;margin-top:8px;font-size:14px;color:var(--t3)">LimitBreaker v16 ⚡</div>
   </div>
 </div>
 
@@ -2964,25 +2972,175 @@ function renderSettings(){
     ${SOUNDS.map(s=>`<div onclick="setTimerSound('${s.id}')" style="display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;background:${settings.timerSound===s.id?'var(--acd)':'var(--bg3)'};border:0.5px solid ${settings.timerSound===s.id?'rgba(232,89,60,.4)':'var(--b)'}"><div style="width:16px;height:16px;border-radius:50%;border:2px solid ${settings.timerSound===s.id?'var(--ac)':'var(--b2)'};background:${settings.timerSound===s.id?'var(--ac)':'transparent'};flex-shrink:0"></div><span style="font-size:15px;color:${settings.timerSound===s.id?'var(--te)':'var(--t2)'}">${s.l}</span></div>`).join('')}
     <button onclick="playAlarm()" style="margin-top:6px;width:100%;padding:7px;background:var(--bg3);border:0.5px solid var(--b2);border-radius:7px;font-size:14px;color:var(--t2);cursor:pointer">▶ テスト再生</button>`;
 }
-function exportCSV(){
-  const rows=['Date,Program,Exercise,Set,Weight(kg),Reps,Note,Volume'];
-  records.forEach(r=>{r.exercises.forEach(ex=>{ex.sets.forEach((s,i)=>{rows.push([r.date.slice(0,10),r.progName||'',ex.n,i+1,s.kg||0,s.reps||0,(s.note||'').replace(/,/g,' '),(s.kg||0)*(parseInt(s.reps||0)||1)].join(','))})})});
-  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
-  const url=URL.createObjectURL(blob);const a=document.createElement('a');
-  a.href=url;a.download='ironlog_'+dateKey(new Date())+'.csv';a.click();URL.revokeObjectURL(url);
+/* ═══ FILE I/O 共通ヘルパー（PWA堅牢化）═══
+   - 要素は必ず document.body に append してから click（standalone PWA で detached 要素の click が無視される事例への対策）
+   - revokeObjectURL は遅延実行（Android Chrome でダウンロードが中断される事例への対策）
+   - accept は MIME 依存を避けて緩める（Android の共有経由ファイルは application/octet-stream になり得る）
+   - 読込失敗は必ずユーザーへ通知する（無言で失敗させない） */
+function _downloadBlob(blob,filename){
+  try{
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=filename;a.rel="noopener";
+    a.style.position="fixed";a.style.left="-9999px";a.style.top="0";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>{try{a.remove()}catch(e){}try{URL.revokeObjectURL(url)}catch(e){}},2000);
+    return true;
+  }catch(e){
+    alert("ファイルの保存に失敗しました: "+(e&&e.message?e.message:e));
+    return false;
+  }
 }
-function importCSV(){
-  const inp=document.createElement('input');inp.type='file';inp.accept='.csv';
+function _pickFile(acceptStr,onLoadText){
+  const inp=document.createElement("input");
+  inp.type="file";inp.accept=acceptStr;
+  inp.style.position="fixed";inp.style.left="-9999px";inp.style.top="0";
+  document.body.appendChild(inp);
+  const cleanup=()=>{try{inp.remove()}catch(e){}};
+  const failMsg="ファイルの読み込みに失敗しました。別のアプリ経由で保存し直してから再試行してください。";
   inp.onchange=e=>{
-    const file=e.target.files[0];if(!file)return;
+    const file=e.target.files&&e.target.files[0];
+    if(!file){cleanup();return}
     const rd=new FileReader();
+    rd.onerror=()=>{cleanup();alert(failMsg)};
+    rd.onabort=()=>{cleanup();alert(failMsg)};
     rd.onload=ev=>{
-      const lines=ev.target.result.split('\n').filter(l=>l.trim());let cnt=0;
-      for(let i=1;i<lines.length;i++){try{const c=lines[i].split(',');if(c.length<5)continue;const [dt,ex,st,rp,kg,el]=c;const d=new Date(dt.replace(/"/g,''));if(isNaN(d))continue;const key=dateKey(d);if(!workouts[key])workouts[key]=[];let rec=workouts[key].find(r=>r.elapsed===(el||'').replace(/"/g,'').trim());if(!rec){rec={date:key,elapsed:(el||'').replace(/"/g,'').trim(),exercises:[]};workouts[key].push(rec);}let exo=rec.exercises.find(x=>x.n===(ex||'').replace(/"/g,'').trim());if(!exo){exo={n:(ex||'').replace(/"/g,'').trim(),sets:[]};rec.exercises.push(exo);}exo.sets.push({kg:parseFloat((kg||'0').replace(/"/g,''))||0,reps:parseInt((rp||'0').replace(/"/g,''))||0});cnt++;}catch(e){}}
-      saveWorkouts();alert('インポート完了: '+cnt+'件');
-    };rd.readAsText(file,'utf-8');
-  };inp.click();
+      cleanup();
+      const txt=ev&&ev.target?ev.target.result:null;
+      if(txt===null||txt===undefined){alert(failMsg);return}
+      try{onLoadText(String(txt))}
+      catch(err){alert("読み込み処理でエラーが発生しました: "+(err&&err.message?err.message:err))}
+    };
+    try{rd.readAsText(file,"utf-8")}catch(err){cleanup();alert(failMsg)}
+  };
+  inp.click();
 }
+
+/* ═══ CSV エクスポート（閲覧・分析用 / インポートは廃止）═══ */
+const CSV_ACCEPT=".csv,text/csv,text/plain,application/octet-stream";
+const JSON_ACCEPT=".json,application/json,text/plain,application/octet-stream";
+function _csvCell(v){
+  const s=(v===null||v===undefined)?"":String(v);
+  return /[",\r\n]/.test(s)?"\""+s.replace(/"/g,"\"\"")+"\"":s;
+}
+function exportCSV(){
+  const rows=[["Date","Program","Exercise","Set","Weight(kg)","Reps","Note","Volume"].join(",")];
+  records.forEach(r=>{(r.exercises||[]).forEach(ex=>{(ex.sets||[]).forEach((s,i)=>{
+    rows.push([
+      _csvCell(String(r.date||"").slice(0,10)),
+      _csvCell(r.progName||""),
+      _csvCell(ex.n||""),
+      _csvCell(i+1),
+      _csvCell(s.kg||0),
+      _csvCell(s.reps||0),
+      _csvCell(s.note||""),
+      _csvCell((s.kg||0)*(parseInt(s.reps||0)||1))
+    ].join(","));
+  })})});
+  const blob=new Blob([rows.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  _downloadBlob(blob,"ironlog_"+dateKey(new Date())+".csv");
+}
+
+/* ═══ JSON 全体バックアップ / 復元（機種変更の正式ルート）═══ */
+const BACKUP_APP="LimitBreaker";
+function _readRaw(k){try{return localStorage.getItem("il11_"+k)}catch(e){return null}}
+function exportBackup(){
+  try{
+    const data={};
+    DATA_KEYS.forEach(k=>{
+      const raw=_readRaw(k);
+      if(raw===null)return;
+      try{data[k]=JSON.parse(raw)}catch(e){}
+    });
+    const obj={_app:BACKUP_APP,_type:"backup",_schema:SCHEMA_VER,_exportedAt:new Date().toISOString(),data:data};
+    const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+    _downloadBlob(blob,"limitbreaker_backup_"+dateKey(new Date())+".json");
+  }catch(e){
+    alert("バックアップの作成に失敗しました: "+(e&&e.message?e.message:e));
+  }
+}
+/* 復元前の自動退避。既存 _dataSafety() と同一形式・同一世代管理のため LB_restoreBackup() で復旧できる */
+function _snapshotBeforeRestore(){
+  try{
+    const snap={_ver:S.get("schemaVer"),_at:new Date().toISOString()};
+    DATA_KEYS.forEach(k=>{const v=_readRaw(k);if(v!==null)snap[k]=v;});
+    localStorage.setItem("il11_backup_"+Date.now(),JSON.stringify(snap));
+    const bks=_listBackups();
+    while(bks.length>BACKUP_KEEP){const old=bks.shift();try{localStorage.removeItem(old)}catch(e){}}
+    return true;
+  }catch(e){return false}
+}
+function importBackup(){
+  _pickFile(JSON_ACCEPT,txt=>{
+    let obj=null;
+    try{obj=JSON.parse(txt)}
+    catch(e){alert("バックアップファイルの形式が不正です。読み込みを中止しました。");return}
+    if(!obj||obj._app!==BACKUP_APP||!obj.data||typeof obj.data!=="object"){
+      alert("LimitBreakerのバックアップファイルではありません。読み込みを中止しました。");return;
+    }
+    const d=obj.data;
+    if(!_snapshotBeforeRestore()){
+      alert("復元前の自動バックアップに失敗したため、処理を中止しました。");return;
+    }
+    const replace=confirm("OK＝置換（現在のデータを全て入れ替え）／キャンセル＝マージ（既存データを残して追加）");
+    try{
+      if(replace){
+        /* 取込JSONに含まれるキーだけ上書き。含まれないキーは消さない */
+        DATA_KEYS.forEach(k=>{if(d[k]!==undefined)S.set(k,d[k])});
+      }else{
+        if(Array.isArray(d.records)){
+          const cur=S.get("records")||[];
+          const seen={};cur.forEach(r=>{if(r&&r._id!==undefined)seen[String(r._id)]=1});
+          d.records.forEach(r=>{
+            if(!r||typeof r!=="object")return;
+            const id=(r._id!==undefined&&r._id!==null&&r._id!=="")?String(r._id):("r"+Math.random().toString(36).slice(2));
+            if(seen[id])return;
+            seen[id]=1;
+            const c=Object.assign({},r);c._id=id;cur.push(c);
+          });
+          S.set("records",cur);
+        }
+        if(Array.isArray(d.bodyData)){
+          const cur=S.get("bodyData")||[];
+          const seen={};cur.forEach(b=>{if(b&&b.date!==undefined)seen[String(b.date)]=1});
+          d.bodyData.forEach(b=>{
+            if(!b||typeof b!=="object"||b.date===undefined)return;
+            const key=String(b.date);
+            if(seen[key])return;
+            seen[key]=1;cur.push(b);
+          });
+          S.set("bodyData",cur);
+        }
+        ["masterDB","routines"].forEach(k=>{
+          if(!Array.isArray(d[k]))return;
+          const cur=S.get(k)||[];
+          const seen={};cur.forEach(x=>{if(x&&x.id!==undefined)seen[String(x.id)]=1});
+          d[k].forEach(x=>{
+            if(!x||typeof x!=="object"||x.id===undefined)return;
+            const key=String(x.id);
+            if(seen[key])return;
+            seen[key]=1;cur.push(x);
+          });
+          S.set(k,cur);
+        });
+        if(d.settings&&typeof d.settings==="object"){
+          S.set("settings",Object.assign({},DEFAULT_SETTINGS,S.get("settings")||{},d.settings));
+        }
+        if(d.goalText!==undefined&&_readRaw("goalText")===null){S.set("goalText",d.goalText)}
+      }
+    }catch(e){
+      alert("復元中にエラーが発生しました: "+(e&&e.message?e.message:e)+"\n直前の自動バックアップから復旧できます（コンソールで LB_listBackups() / LB_restoreBackup(キー名)）。");
+      return;
+    }
+    const nr=(S.get("records")||[]).length;
+    const nm=(S.get("masterDB")||[]).length;
+    const nb=(S.get("bodyData")||[]).length;
+    alert("復元しました（記録 "+nr+"件 / 種目 "+nm+"件 / 体組成 "+nb+"件）");
+    location.reload();
+  });
+}
+
 function resetAll(){if(!confirm('全データを削除しますか？取り消せません。'))return;masterDB=JSON.parse(JSON.stringify(DEF_MASTER));routines=JSON.parse(JSON.stringify(DEF_ROUTINES));records=[];bodyData=[];settings={unit:'kg',defaultSets:3,defaultRest:90};saveMDB();saveRoutines();saveRecs();saveBD();saveSettings();reRender()}
 
 /* ═══ RERENDER ═══ */
