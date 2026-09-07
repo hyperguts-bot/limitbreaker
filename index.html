@@ -740,7 +740,7 @@ html,body{height:100dvh;overflow:hidden;background:var(--bg);color:var(--te);fon
       </div>
     </div>
     <button id="set-save-btn" onclick="saveSettingsBtn()" style="width:100%;padding:14px;background:var(--ac);border:none;border-radius:10px;font-family:var(--fd);font-size:20px;letter-spacing:2px;color:#fff;cursor:pointer;margin-top:4px;margin-bottom:4px">✓ 設定を保存</button>
-    <div style="text-align:center;margin-top:8px;font-size:14px;color:var(--t3)">LimitBreaker v16 ⚡</div>
+    <div style="text-align:center;margin-top:8px;font-size:14px;color:var(--t3)">LimitBreaker v17 ⚡</div>
   </div>
 </div>
 
@@ -1203,6 +1203,7 @@ function toggleEspEx(id){
 function startFreeSession(){
   if(!sessExercises.length){alert('種目を選択してください');return}
   session={name:sessName,exs:sessExercises,idx:0,start:Date.now()};
+  _ensureSid();saveDraft();
   closeModal('ex-sel-pop');nav('session');renderSession();startElapsedTimer();
 }
 // Modify esp-close to start session
@@ -1222,6 +1223,7 @@ function startRoutine(id){
   sessExercises=r.exIds.map(mid=>{const ex=getEx(mid);return{...ex,sets:Array.from({length:ex.sets||settings.defaultSets},()=>({kg:ex.weight||0,reps:'',note:'',done:false}))}});
   sessIdx=0;sessName=r.name;sessStart=Date.now();
   session={name:sessName,exs:sessExercises,idx:0,start:Date.now()};
+  _ensureSid();saveDraft();
   closeModal('rout-modal');nav('session');renderSession();startElapsedTimer();
 }
 function startFromLast(){
@@ -1230,6 +1232,7 @@ function startFromLast(){
   sessExercises=last.exercises.map(ex=>({...ex,sets:ex.sets.map(s=>({kg:s.kg,reps:'',note:'',done:false}))}));
   sessIdx=0;sessName=last.progName||'前回複製';sessStart=Date.now();
   session={name:sessName,exs:sessExercises,idx:0,start:Date.now()};
+  _ensureSid();saveDraft();
   nav('session');renderSession();startElapsedTimer();
 }
 
@@ -1406,6 +1409,7 @@ function setPosNeg(i,val){
   if(!session)return;
   const cur=session.exs[session.idx].sets[i].posNeg||'';
   session.exs[session.idx].sets[i].posNeg=(cur===val?'':val);
+  markDraftDirty();
   // ポジ/ネガボタンの色だけ更新
   const dataRows=document.querySelectorAll('#setrows .set-data-row');
   if(dataRows[i]){
@@ -1426,6 +1430,7 @@ function setPosNeg(i,val){
 function updateSet(i,key,val){
   if(!session)return;
   session.exs[session.idx].sets[i][key]=val;
+  markDraftDirty();
   // kgの場合のみTOTAL列をDOM更新（フォーカスを失わずに）
   if(key==='kg'){
     const ex=session.exs[session.idx];
@@ -1441,8 +1446,8 @@ function updateSet(i,key,val){
   }
 }
 
-function goSEx(dir){if(!session)return;session.idx=Math.max(0,Math.min(session.exs.length-1,session.idx+dir));renderSession()}
-function goSExTo(i){if(!session)return;session.idx=i;renderSession()}
+function goSEx(dir){if(!session)return;session.idx=Math.max(0,Math.min(session.exs.length-1,session.idx+dir));renderSession();saveDraft()}
+function goSExTo(i){if(!session)return;session.idx=i;renderSession();saveDraft()}
 (function initSwipe(){
   let tx=0,ty=0;
   document.addEventListener('touchstart',e=>{
@@ -1462,7 +1467,7 @@ function performSessExDelete(){
   if(!session)return;
   session.exs.splice(session.idx,1);
   session.idx=Math.min(session.idx,session.exs.length-1);
-  renderSession();
+  renderSession();saveDraft();
 }
 function delSessEx(){
   if(!session)return;
@@ -1482,7 +1487,7 @@ function addSessSet(){
   const last=ex.sets[ex.sets.length-1]||{kg:0};
   // kg（重量）のみコピー、回数はコピーしない
   ex.sets.push({kg:last.kg,reps:'',cheat:0,assist:0,posNeg:'',note:'',done:false});
-  refreshSetRows();
+  refreshSetRows();saveDraft();
   // 追加した行が見切れないよう #setrows を最下部へ自動スクロール（追加を即確認できる）
   const sr=document.getElementById("setrows");
   if(sr)requestAnimationFrame(()=>{try{sr.scrollTo({top:sr.scrollHeight,behavior:"smooth"});}catch(e){sr.scrollTop=sr.scrollHeight;}});
@@ -1492,9 +1497,9 @@ function delSessSet(i){
   const ex=session.exs[session.idx];
   if(ex.sets.length<=1)return;
   ex.sets.splice(i,1);
-  refreshSetRows();
+  refreshSetRows();saveDraft();
 }
-function adjRest(d){restSec=Math.max(15,Math.min(300,restSec+d));const rv=document.getElementById('sess-rv');if(rv)rv.textContent=restSec+'s';if(session)session.exs[session.idx].restSec=restSec}
+function adjRest(d){restSec=Math.max(15,Math.min(300,restSec+d));const rv=document.getElementById('sess-rv');if(rv)rv.textContent=restSec+'s';if(session){session.exs[session.idx].restSec=restSec;markDraftDirty();}}
 
 function openQae(){qaeF='';renderQaeFilter();renderQaeList();openModal('qae-pop')}
 function renderQaeFilter(){document.getElementById('qae-filter').innerHTML=MUSCLES.map(m=>`<div class="mfb ${(m==='全て'&&qaeF==='')||m===qaeF?'on':''}" onclick="setQaeF('${m==='全て'?'':m}')" style="font-size:13px;padding:2px 6px">${m==='全て'?'全て':MUSCLES_JP[m]||m}</div>`).join('')}
@@ -1509,10 +1514,11 @@ function addExToSess(mid){
   const ex=getEx(mid);
   session.exs.push({...ex,sets:Array.from({length:ex.sets||settings.defaultSets},()=>({kg:ex.weight||0,reps:'',cheat:0,assist:0,posNeg:'',note:'',done:false}))});
   session.idx=session.exs.length-1;
-  renderSession();closeModal('qae-pop');
+  renderSession();saveDraft();closeModal('qae-pop');
 }
 
 function cancelSession(){
+  clearDraft();
   session=null;
   sessExercises=[];
   clearInterval(elapsedI);
@@ -1529,8 +1535,118 @@ function calcSetVol(s){
   if(settings.volAssist)reps+=parseInt(s.assist||0);
   return kg*reps;
 }
+/* ═══ ワークアウト下書き（常時保存＋保存検証）═══
+   目的：「保存したつもりが記録されていなかった」を構造的に防ぐ。
+   - セッション中の状態を localStorage(il11_draft) へ常時保存
+   - 保存は records への書込 → 読み直して存在確認 → 確認できてから下書き削除
+   - 確認できなければ下書きは絶対に消さない
+   - sid（セッションID）で二重登録を防止 */
+const DRAFT_KEY="draft";
+let _draftDirty=false,_draftTimer=null;
+function _ensureSid(){
+  if(session&&!session.sid)session.sid="s"+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  return session?session.sid:null;
+}
+function _sessionSnapshot(){
+  if(!session)return null;
+  _ensureSid();
+  return{
+    v:1,
+    sid:session.sid,
+    name:session.name,
+    idx:session.idx,
+    exs:session.exs,
+    restSec:restSec,
+    elapsedMs:Math.max(0,Date.now()-(session.start||Date.now())),
+    _editId:session._editId||null,
+    _baseElapsed:session._baseElapsed||0,
+    savedAt:new Date().toISOString()
+  };
+}
+function saveDraft(){
+  try{
+    const snap=_sessionSnapshot();
+    if(!snap)return false;
+    S.set(DRAFT_KEY,snap);
+    _draftDirty=false;
+    return true;
+  }catch(e){return false}
+}
+function markDraftDirty(){_draftDirty=true;}
+function clearDraft(){try{S.remove(DRAFT_KEY)}catch(e){}_draftDirty=false;}
+function getDraft(){try{const d=S.get(DRAFT_KEY);if(!d||!d.exs||!Array.isArray(d.exs)||!d.exs.length)return null;return d}catch(e){return null}}
+/* 入力のたびに書き込むと重いので、変更フラグ＋定期保存。構造変更は即時保存 */
+_draftTimer=setInterval(()=>{if(session&&_draftDirty)saveDraft();},2000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden"&&session)saveDraft();});
+window.addEventListener("pagehide",()=>{if(session)saveDraft();});
+window.addEventListener("beforeunload",()=>{if(session)saveDraft();});
+
+/* ── 通知トースト ── */
+function showToast(msg,kind){
+  try{
+    let t=document.getElementById("lb-toast");
+    if(!t){
+      t=document.createElement("div");
+      t.id="lb-toast";
+      t.style.cssText="position:fixed;left:50%;top:64px;transform:translateX(-50%);z-index:9999;max-width:88%;padding:12px 18px;border-radius:10px;font-size:15px;font-weight:700;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.5);opacity:0;transition:opacity .18s;pointer-events:none;white-space:pre-line";
+      document.body.appendChild(t);
+    }
+    const ok=kind!=="err";
+    t.style.background=ok?"#1f5c23":"#5c1f1f";
+    t.style.border="1px solid "+(ok?"rgba(76,175,80,.7)":"rgba(232,89,60,.7)");
+    t.style.color=ok?"#8ee39a":"#ffb3a6";
+    t.textContent=msg;
+    t.style.opacity="1";
+    clearTimeout(t._h);
+    t._h=setTimeout(()=>{t.style.opacity="0"},2600);
+  }catch(e){}
+}
+
+/* ── 未保存セッションの復旧 ── */
+function _draftSummary(d){
+  let sets=0,exs=0;
+  (d.exs||[]).forEach(ex=>{const n=(ex.sets||[]).filter(s=>parseInt(s.reps||0)>0).length;if(n>0){exs++;sets+=n;}});
+  const when=d.savedAt?new Date(d.savedAt):null;
+  const wt=when?`${when.getMonth()+1}/${when.getDate()} ${String(when.getHours()).padStart(2,"0")}:${String(when.getMinutes()).padStart(2,"0")}`:"";
+  return`${d.name||"ワークアウト"}（${exs}種目 / ${sets}セット入力済み・最終更新 ${wt}）`;
+}
+function _showResumeBanner(){
+  const d=getDraft();
+  if(!d)return;
+  if(document.getElementById("lb-resume"))return;
+  const box=document.createElement("div");
+  box.id="lb-resume";
+  box.style.cssText="position:fixed;left:8px;right:8px;bottom:72px;z-index:9998;background:var(--bg2);border:1px solid rgba(232,89,60,.55);border-radius:12px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.55)";
+  box.innerHTML='<div style="font-size:15px;font-weight:700;color:var(--ac);margin-bottom:3px">未保存のワークアウトがあります</div>'+
+    '<div id="lb-resume-sum" style="font-size:13px;color:var(--t2);margin-bottom:10px;line-height:1.5"></div>'+
+    '<div style="display:flex;gap:8px">'+
+    '<button id="lb-resume-go" style="flex:1;padding:9px;border-radius:8px;border:0.5px solid rgba(232,89,60,.5);background:var(--acd);color:var(--ac);font-size:14px;font-weight:700;cursor:pointer">続きから再開</button>'+
+    '<button id="lb-resume-del" style="flex:1;padding:9px;border-radius:8px;border:0.5px solid var(--b2);background:var(--bg3);color:var(--t3);font-size:14px;cursor:pointer">破棄</button>'+
+    '</div>';
+  document.body.appendChild(box);
+  document.getElementById("lb-resume-sum").textContent=_draftSummary(d);
+  document.getElementById("lb-resume-go").onclick=()=>{box.remove();resumeDraft();};
+  document.getElementById("lb-resume-del").onclick=()=>{
+    if(!confirm("未保存のワークアウトを破棄します。この操作は取り消せません。よろしいですか？"))return;
+    clearDraft();box.remove();
+  };
+}
+function resumeDraft(){
+  const d=getDraft();
+  if(!d){showToast("下書きが見つかりませんでした","err");return}
+  sessExercises=d.exs;
+  sessIdx=d.idx||0;
+  sessName=d.name||"ワークアウト";
+  restSec=d.restSec||restSec;
+  session={name:sessName,exs:sessExercises,idx:Math.min(d.idx||0,d.exs.length-1),start:Date.now()-(d.elapsedMs||0),sid:d.sid,_editId:d._editId||undefined,_baseElapsed:d._baseElapsed||0};
+  if(!session._editId)delete session._editId;
+  nav("session");renderSession();startElapsedTimer();
+  showToast("ワークアウトを再開しました");
+}
+
 function endSession(){
   if(!session)return;
+  _ensureSid();saveDraft();
   clearInterval(elapsedI);
   let totalVol=0,totalSets=0;
   session.exs.forEach(ex=>ex.sets.forEach(s=>{const rp=parseInt(s.reps||0);if(rp>0){totalVol+=calcSetVol(s);totalSets++;}}));
@@ -1561,19 +1677,37 @@ function endSession(){
 }
 function backToSession(){document.getElementById('fm-bg').classList.remove('show');session.start=Date.now()-((window._pendingRec?.elapsed||0)*60000);startElapsedTimer();nav('session')}
 function saveAndGoHome(){
-  if(window._pendingRec){
-    const editId=window._pendingRec._editId;
-    const rec=Object.assign({},window._pendingRec);
+  const pend=window._pendingRec;
+  if(pend){
+    const editId=pend._editId;
+    const sid=(session&&session.sid)||pend._sid||null;
+    const rec=Object.assign({},pend);
     delete rec._editId;
-    if(editId){
-      // IDが一致する既存レコードを上書き
-      const idx=records.findIndex(r=>r._id===editId);
-      if(idx>=0){records[idx]=rec;}
-      else{records.push(rec);}
-    } else {
-      records.push(rec);
+    if(sid)rec._sid=sid;
+    // 二重登録防止：編集ID → セッションID → レコードID の順で既存を探し、あれば上書き
+    let idx=-1;
+    if(editId)idx=records.findIndex(r=>r&&r._id===editId);
+    if(idx<0&&sid)idx=records.findIndex(r=>r&&r._sid===sid);
+    if(idx<0)idx=records.findIndex(r=>r&&r._id===rec._id);
+    if(idx>=0){records[idx]=rec;}else{records.push(rec);}
+    saveRecs();
+    // 保存検証：localStorageから読み直して実際に存在するか確認する
+    let ok=false;
+    try{
+      const verify=S.get("records")||[];
+      ok=verify.some(r=>r&&r._id===rec._id&&(!sid||r._sid===sid));
+    }catch(e){ok=false;}
+    if(!ok){
+      // 検証できなかった場合、下書きは絶対に削除しない
+      showToast("保存に失敗しました。ワークアウトデータは保持されています","err");
+      alert("保存に失敗しました。ワークアウトデータは保持されています。\n端末の空き容量を確認してから、もう一度「保存して終了」を実行してください。");
+      return;
     }
-    saveRecs();window._pendingRec=null;
+    window._pendingRec=null;
+    clearDraft();
+    showToast("ワークアウトを保存しました");
+  }else{
+    clearDraft();
   }
   session=null;clearInterval(elapsedI);
   document.getElementById('fm-bg').classList.remove('show');
@@ -1773,10 +1907,11 @@ function renderStats(){
   const totalTime=filtered.reduce((a,r)=>a+(parseInt(r.elapsed)||0),0);
   const timeEl=document.getElementById('st-timen');if(timeEl)timeEl.textContent=totalTime;
   // PR
-  let bestPR=0,bestEx='';
-  records.forEach(r=>r.exercises.forEach(ex=>{const bA=getBarAdd(ex.equip||'none');ex.sets.forEach(s=>{const v=(s.kg||0)+(bA>0?bA:0);if(v>bestPR){bestPR=v;bestEx=ex.n}})}));
+  const _prAll=allTimeBestMap();
+  let bestPR=0,bestEx='',bestPRReps=0;
+  Object.keys(_prAll).forEach(n=>{const p=_prAll[n];if(p.kg>bestPR||(p.kg===bestPR&&p.reps>bestPRReps)){bestPR=p.kg;bestPRReps=p.reps;bestEx=n;}});
   document.getElementById('st-prn').textContent=bestPR?fmtW(bestPR):'—';
-  document.getElementById('st-prex').textContent=bestEx.slice(0,10);
+  document.getElementById('st-prex').textContent=bestPR?(bestEx.slice(0,8)+' ×'+bestPRReps):'—';
   // compare vol
   let cmpText='';
   (function(){
@@ -1802,23 +1937,38 @@ function renderStats(){
   if(mvEl)mvEl.innerHTML=musGroups.map((m,i)=>`<div class="mv-row"><div class="mv-top"><div class="mv-name">${MUSCLES_JP[m]||m}</div><div class="mv-val">${vols[i]}kg</div></div><div class="mv-bar"><div class="mv-fill" style="width:${vols[i]/maxV*100}%;background:${colors[i]}"></div></div></div>`).join('');
   // exercise stats
   const exStatsMap={};
-  filtered.forEach(r=>r.exercises.forEach(ex=>{if(!exStatsMap[ex.n])exStatsMap[ex.n]={name:ex.n,maxKg:0,maxReps:0,maxSets:0,vol:0};if(ex.sets.length>exStatsMap[ex.n].maxSets)exStatsMap[ex.n].maxSets=ex.sets.length;const bA=getBarAdd(ex.equip||'none');ex.sets.forEach(s=>{const kg=(s.kg||0)+(bA>0?bA:0);const rp=parseInt(s.reps||0);if(kg>exStatsMap[ex.n].maxKg)exStatsMap[ex.n].maxKg=kg;if(rp>exStatsMap[ex.n].maxReps)exStatsMap[ex.n].maxReps=rp;exStatsMap[ex.n].vol+=calcSetVol(s)})}));
+  filtered.forEach(r=>r.exercises.forEach(ex=>{
+    if(!exStatsMap[ex.n])exStatsMap[ex.n]={name:ex.n,vol:0,setCount:0,pKg:0,pReps:0};
+    const t=exStatsMap[ex.n];
+    const bA=getBarAdd(ex.equip||'none');
+    ex.sets.forEach(s=>{
+      const rp=parseInt(s.reps||0);
+      t.vol+=calcSetVol(s);
+      if(!(rp>0))return;
+      t.setCount++;
+      const kg=(s.kg||0)+(bA>0?bA:0);
+      // 期間内ベストも1セット単位（重量→repsのタイブレーク）で判定する
+      if(kg>t.pKg||(kg===t.pKg&&rp>t.pReps)){t.pKg=kg;t.pReps=rp;}
+    });
+  }));
   const exStats=Object.values(exStatsMap).sort((a,b)=>b.vol-a.vol).slice(0,8);
   const exEl=document.getElementById('ex-stats-list');
-  if(exEl)exEl.innerHTML=exStats.length?exStats.map((e,ei)=>`
+  if(exEl)exEl.innerHTML=exStats.length?exStats.map((e,ei)=>{
+    const pr=_prAll[e.name]||{kg:0,reps:0};
+    return `
     <div class="ex-stat-row" data-exname="${e.name}" onclick="toggleExGraph(${ei})">
       <div style="flex:1;min-width:0">
         <div class="ex-stat-name">${e.name}</div>
-        <div style="font-size:13px;color:var(--t3);margin-top:1px">最高 ${fmtW(e.maxKg)} × ${e.maxSets}set</div>
+        <div style="font-size:13px;color:var(--t3);margin-top:1px">期間内 ${e.setCount}セット${e.pKg?` ・ 最高 ${fmtW(e.pKg)}×${e.pReps}`:''}</div>
       </div>
       <div class="ex-stat-vals">
-        <div class="esv"><div class="esv-n">${fmtW(e.maxKg)}</div><div class="esv-l">MAX</div></div>
-        <div class="esv"><div class="esv-n" style="color:var(--bl)">${e.maxReps}</div><div class="esv-l">REPS</div></div>
+        <div class="esv"><div class="esv-n">${pr.kg?fmtW(pr.kg):'—'}</div><div class="esv-l">PR</div></div>
+        <div class="esv"><div class="esv-n" style="color:var(--bl)">${pr.kg?pr.reps:'—'}</div><div class="esv-l">REPS</div></div>
         <div class="esv"><div class="esv-n" style="color:var(--go)">${Math.round(e.vol)}</div><div class="esv-l">VOL</div></div>
       </div>
     </div>
     <div id="exg-${ei}" style="display:none;background:var(--bg2);border:0.5px solid var(--b);border-radius:9px;padding:8px;margin-bottom:4px"></div>
-  `).join(''):`<div style="text-align:center;padding:12px;color:var(--t3);font-size:15px">記録なし</div>`;
+  `;}).join(''):`<div style="text-align:center;padding:12px;color:var(--t3);font-size:15px">記録なし</div>`;
   renderCumulativeChart();
   // PRランキングリスト（全記録から）
   renderPRList();
@@ -1828,21 +1978,30 @@ function adjStatsMonth(d){statsMonthOffset=Math.min(0,statsMonthOffset+d);openEx
 
 // PRランキング: masterDB順・全記録から最大挙上を集計
 let prSelSet=new Set();
-function renderPRList(){
-  const prEl=document.getElementById('pr-list');if(!prEl)return;
-  // 全記録からexerciseごとに最大kg・そのときのreps集計
-  const prMap={};
-  records.forEach(r=>r.exercises.forEach(ex=>{
-    const bA=getBarAdd(ex.equip||'none');
-    ex.sets.forEach(s=>{
-      const kg=(s.kg||0)+(bA>0?bA:0),rp=parseInt(s.reps||0);
-      if(kg>0){
-        if(!prMap[ex.n]||kg>prMap[ex.n].kg||(kg===prMap[ex.n].kg&&rp>prMap[ex.n].reps)){
-          prMap[ex.n]={kg,reps:rp};
-        }
-      }
+/* 自己記録(PR)＝実際に行った1セット単位の最高重量。
+   全ワークアウトの全セットから最も重いセットを1つ選び、そのセットのrepsを採用する。
+   同一重量が複数ある場合はrepsが最も多いセットを採用。
+   重量やrepsの合算・Volume由来・推定1RMは使わない。 */
+function allTimeBestMap(){
+  const m={};
+  records.forEach(r=>(r.exercises||[]).forEach(ex=>{
+    const bA=getBarAdd(ex.equip||"none");
+    (ex.sets||[]).forEach(s=>{
+      const rp=parseInt(s.reps||0);
+      if(!(rp>0))return;
+      const kg=(s.kg||0)+(bA>0?bA:0);
+      if(!(kg>0))return;
+      const c=m[ex.n];
+      if(!c||kg>c.kg||(kg===c.kg&&rp>c.reps))m[ex.n]={kg:kg,reps:rp,date:r.date};
     });
   }));
+  return m;
+}
+function allTimeBestSet(name){return allTimeBestMap()[name]||{kg:0,reps:0,date:null};}
+function renderPRList(){
+  const prEl=document.getElementById('pr-list');if(!prEl)return;
+  // 自己記録は allTimeBestMap（1セット単位の最高重量）に一本化
+  const prMap=allTimeBestMap();
   // masterDB順でフィルタ
   const prList=masterDB.filter(m=>prMap[m.n]).map(m=>({name:m.n,...prMap[m.n]}));
   if(!prList.length){prEl.innerHTML=`<div style="text-align:center;padding:10px;font-size:13px;color:var(--t3)">記録なし</div>`;return;}
@@ -2047,200 +2206,125 @@ function renderCumulativeChart(){
 
 let openExGraphs=new Set();
 // 累計グラフの年ナビ用：nameからidxを逆引きして再描画
+/* ═══ 種目別 成長グラフ（時間軸の折れ線）═══
+   目的：「この種目が過去から現在までどの程度伸びたか」を一目で見る。
+   横軸＝実時間（左が古い／右が新しい）、縦軸＝重量。全期間タブ共通で折れ線。 */
+function _exSessionPoints(name,src){
+  // ワークアウト単位で「その日の最高重量セット」を1点にする
+  const byDay={};
+  [...src].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(r=>{
+    (r.exercises||[]).forEach(ex=>{
+      if(ex.n!==name)return;
+      const bA=getBarAdd(ex.equip||"none");
+      const exM=masterDB.find(e=>e.n===ex.n);
+      const mc=exM&&exM.machine?0.9:1.0;
+      const key=dateKey(r.date);
+      if(!byDay[key])byDay[key]={t:new Date(dateKey(r.date)+"T00:00:00").getTime(),key:key,kg:0,reps:0,rm:0,vol:0,sets:0};
+      const g=byDay[key];
+      (ex.sets||[]).forEach(s=>{
+        const rp=parseInt(s.reps||0);
+        if(!(rp>0))return;
+        const kg=(s.kg||0)+(bA>0?bA:0);
+        g.sets++;
+        g.vol+=calcSetVol(s);
+        if(kg>g.kg||(kg===g.kg&&rp>g.reps)){g.kg=kg;g.reps=rp;}
+        const rm=est1RM(kg,rp,mc);
+        if(rm>g.rm)g.rm=rm;
+      });
+    });
+  });
+  return Object.values(byDay).filter(p=>p.kg>0).sort((a,b)=>a.t-b.t);
+}
+function _fmtDateShort(t,withYear){
+  const d=new Date(t);
+  return withYear?`${String(d.getFullYear()).slice(2)}/${d.getMonth()+1}`:`${d.getMonth()+1}/${d.getDate()}`;
+}
 function toggleExGraphByName(name){
-  const rows=document.querySelectorAll('#ex-stats-list .ex-stat-row');
+  const rows=document.querySelectorAll("#ex-stats-list .ex-stat-row");
   let foundIdx=-1;
   rows.forEach((r,i)=>{if(r.dataset.exname===name)foundIdx=i;});
   if(foundIdx>=0){openExGraphs.delete(foundIdx);toggleExGraph(foundIdx);}
 }
 function toggleExGraph(idx){
-  const el=document.getElementById('exg-'+idx);if(!el)return;
-  const row=document.querySelectorAll('#ex-stats-list .ex-stat-row')[idx];
-  const name=row?.dataset.exname||'';
-  const isOpen=openExGraphs.has(idx);
-  if(isOpen){openExGraphs.delete(idx);el.style.display='none';return;}
-  openExGraphs.add(idx);el.style.display='block';
+  const el=document.getElementById("exg-"+idx);if(!el)return;
+  const row=document.querySelectorAll("#ex-stats-list .ex-stat-row")[idx];
+  const name=(row&&row.dataset.exname)||"";
+  if(openExGraphs.has(idx)){openExGraphs.delete(idx);el.style.display="none";return;}
+  openExGraphs.add(idx);el.style.display="block";
 
-  // 期間フィルタ
-  const src=getFilteredRecords();
-
-  // 期間に応じたグルーピングキー
-  function groupKey(dateStr){
-    const d=new Date(dateStr);
-    if(statsP==='year')return`${d.getFullYear()}/${d.getMonth()+1}`;
-    return`${d.getMonth()+1}/${d.getDate()}`;
-  }
-  function groupLabel(k){return k;}
-
-  // グループごとの最大重量・推定1RM
-  const grouped={};
-  [...src].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(r=>{
-    r.exercises.forEach(ex=>{
-      if(ex.n===name){
-        const k=groupKey(r.date);
-        if(!grouped[k])grouped[k]={date:k,maxKg:0,maxSets:0,vol:0,rm:0};
-        const bA=getBarAdd(ex.equip||'none');
-        ex.sets.forEach(s=>{
-          const plate=s.kg||0,kg=plate+(bA>0?bA:0),rp=parseInt(s.reps||0);
-          if(kg>grouped[k].maxKg)grouped[k].maxKg=kg;
-          if(rp>0){const exM=masterDB.find(e=>e.n===ex.n);const mc=exM?.machine?0.9:1.0;const rm=est1RM(kg,rp,mc);if(rm>grouped[k].rm)grouped[k].rm=rm;}
-          grouped[k].vol+=(plate)*(rp||1);
-        });
-        if(ex.sets.length>grouped[k].maxSets)grouped[k].maxSets=ex.sets.length;
-      }
-    });
-  });
-  const pts=Object.values(grouped);
-  if(!pts.length){el.innerHTML='<div style="text-align:center;padding:8px;color:var(--t3);font-size:15px">データなし</div>';return;}
-
-  const maxY=Math.max(...pts.map(p=>Math.max(p.maxKg,p.rm||0)),1);
-  const W=el.offsetWidth||280,H=130,padL=36,padR=8,padT=14,padB=20;
-  const plotW=W-padL-padR,plotH=H-padT-padB;
-
-  // --- 期間ごとの固定X軸スロット定義 ---
-  let xSlots=[];  // [{key, label}]
-  const now2=new Date();
-  if(statsP==='week'){
-    // 月〜日の7本（今日を含む直近7日）
-    const days=['月','火','水','木','金','土','日'];
-    for(let i=6;i>=0;i--){
-      const d=new Date(now2);d.setDate(now2.getDate()-i);
-      const k=`${d.getMonth()+1}/${d.getDate()}`;
-      const wd=days[(d.getDay()+6)%7];
-      xSlots.push({key:k,label:wd});
-    }
-  } else if(statsP==='month'){
-    // 表示月（オフセット対応）の1日〜末日
-    const tgt=new Date(now2.getFullYear(),now2.getMonth()+statsMonthOffset,1);
-    const y=tgt.getFullYear(),m=tgt.getMonth();
-    const dim=new Date(y,m+1,0).getDate();
-    for(let d=1;d<=dim;d++){
-      const k=`${m+1}/${d}`;
-      xSlots.push({key:k,label:d%7===1?String(d):''});
-    }
-  } else if(statsP==='year'){
-    // 過去5年（今年含む）の各年
-    for(let i=4;i>=0;i--){
-      const yr=now2.getFullYear()-i;
-      xSlots.push({key:`${yr}/1`,label:String(yr)});
-    }
-  } else {
-    // day：データ点をそのままスロットに
-    xSlots=pts.map(p=>({key:p.date,label:p.date}));
-  }
-
-  // ── 12ヶ月タブは直近12ヶ月の月別横棒グラフで表示 ──
-  if(statsP==='12m'){
-    const exMonths=buildLast12Months(name);
-    const totalSets=exMonths.reduce((a,m)=>a+m.sets,0);
-    const totalVol=Math.round(exMonths.reduce((a,m)=>a+m.vol,0));
-    const W2=el.offsetWidth||280;
-    el.innerHTML=`
-      <div style="font-size:13px;color:var(--t3);margin-bottom:4px">${name} / 直近12ヶ月（タップで閉じる）</div>
-      <div style="display:flex;gap:8px;margin-bottom:6px">
-        <div style="flex:1;background:var(--bg3);border:0.5px solid var(--b);border-radius:7px;padding:5px 8px;text-align:center"><div style="font-family:var(--fd);font-size:15px;color:#3B8BD4">${totalSets}</div><div style="font-size:17px;color:var(--t3)">Total Sets</div></div>
-        <div style="flex:1;background:var(--bg3);border:0.5px solid var(--b);border-radius:7px;padding:5px 8px;text-align:center"><div style="font-family:var(--fd);font-size:15px;color:var(--ac)">${Math.round(totalVol/1000*10)/10}<span style="font-size:14px;color:var(--t3)">t</span></div><div style="font-size:17px;color:var(--t3)">Volume</div></div>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:4px">
-        <div style="display:flex;align-items:center;gap:3px"><div style="width:7px;height:7px;border-radius:1px;background:#3B8BD4"></div><span style="font-size:17px;color:var(--t3)">セット数</span></div>
-        <div style="display:flex;align-items:center;gap:3px"><div style="width:7px;height:7px;border-radius:1px;background:#E8593C"></div><span style="font-size:17px;color:var(--t3)">ボリューム</span></div>
-      </div>
-      ${buildMonthlyBarSVG(exMonths,W2)}
-    `;
+  const pts=_exSessionPoints(name,getFilteredRecords());
+  if(!pts.length){
+    el.innerHTML='<div style="text-align:center;padding:10px;color:var(--t3);font-size:15px">この期間のデータがありません</div>';
     return;
   }
 
-  // ── 累計タブは月別横棒グラフで表示 ──
-  if(statsP==='all'){
-    // cumulYearの月別データを種目別で集計
-    const exMonths=buildYearMonths(cumulYear, name);
-    const totalSets=exMonths.reduce((a,m)=>a+m.sets,0);
-    const totalVol=Math.round(exMonths.reduce((a,m)=>a+m.vol,0));
-    const W2=el.offsetWidth||280;
+  const W=el.offsetWidth||300,H=170,padL=40,padR=12,padT=16,padB=26;
+  const plotW=Math.max(W-padL-padR,10),plotH=H-padT-padB;
+  const tMin=pts[0].t,tMax=pts[pts.length-1].t,tSpan=Math.max(tMax-tMin,1);
+  const single=pts.length===1;
+  const xOf=t=>single?padL+plotW/2:padL+plotW*((t-tMin)/tSpan);
 
-    // 年ナビ
-    const years=[...new Set(records.map(r=>new Date(r.date).getFullYear()))].sort((a,b)=>a-b);
-    const canPrev2=years[0]<cumulYear;
-    const canNext2=cumulYear<years[years.length-1]||cumulYear<new Date().getFullYear();
+  const maxRaw=Math.max(...pts.map(p=>Math.max(p.kg,p.rm||0)),1);
+  const minRaw=Math.min(...pts.map(p=>p.kg));
+  // 伸びが見えるようにY軸下限を持ち上げる（0起点だと変化が潰れるため）
+  let yLo=Math.max(0,Math.floor((minRaw-(maxRaw-minRaw)*0.35-2)/5)*5);
+  let yHi=Math.ceil((maxRaw+Math.max((maxRaw-minRaw)*0.15,2))/5)*5;
+  if(yHi<=yLo)yHi=yLo+5;
+  const yOf=v=>padT+plotH*(1-(v-yLo)/(yHi-yLo));
 
-    el.innerHTML=`
-      <div style="font-size:13px;color:var(--t3);margin-bottom:4px;display:flex;align-items:center;justify-content:space-between">
-        <span>${name} / ${cumulYear}年（タップで閉じる）</span>
-        <div style="display:flex;align-items:center;gap:6px">
-          <span onclick="cumulYear--;toggleExGraphByName('${name.replace(/'/g,"'")}')" style="cursor:pointer;font-size:14px;color:${canPrev2?'var(--te)':'var(--b2)'}">‹</span>
-          <span style="font-size:14px;color:var(--t2)">${cumulYear}</span>
-          <span onclick="cumulYear++;toggleExGraphByName('${name.replace(/'/g,"'")}')" style="cursor:pointer;font-size:14px;color:${canNext2?'var(--te)':'var(--b2)'}">›</span>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:6px">
-        <div style="flex:1;background:var(--bg3);border:0.5px solid var(--b);border-radius:7px;padding:5px 8px;text-align:center">
-          <div style="font-family:var(--fd);font-size:15px;color:#3B8BD4">${totalSets}</div>
-          <div style="font-size:17px;color:var(--t3)">Total Sets</div>
-        </div>
-        <div style="flex:1;background:var(--bg3);border:0.5px solid var(--b);border-radius:7px;padding:5px 8px;text-align:center">
-          <div style="font-family:var(--fd);font-size:15px;color:var(--ac)">${Math.round(totalVol/1000*10)/10}<span style="font-size:14px;color:var(--t3)">t</span></div>
-          <div style="font-size:17px;color:var(--t3)">Volume</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:4px">
-        <div style="display:flex;align-items:center;gap:3px"><div style="width:7px;height:7px;border-radius:1px;background:#3B8BD4"></div><span style="font-size:17px;color:var(--t3)">セット数</span></div>
-        <div style="display:flex;align-items:center;gap:3px"><div style="width:7px;height:7px;border-radius:1px;background:#E8593C"></div><span style="font-size:17px;color:var(--t3)">ボリューム</span></div>
-      </div>
-      ${buildMonthlyBarSVG(exMonths,W2)}
-    `;
-    return;
-  }
+  const withYear=tSpan>1000*60*60*24*400;
+  // X軸ラベルは最大5本（重なり防止）
+  const labN=Math.min(pts.length,5);
+  const labIdx=single?[0]:Array.from({length:labN},(_,i)=>Math.round(i*(pts.length-1)/(labN-1)));
+  const xLabels=[...new Set(labIdx)].map(i=>{
+    const x=Math.max(padL+10,Math.min(W-padR-10,xOf(pts[i].t)));
+    return`<text x="${x}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--t3)">${_fmtDateShort(pts[i].t,withYear)}</text>`;
+  }).join("");
 
-  // データをスロットにマッピング
-  const dataMap={};
-  pts.forEach(p=>dataMap[p.date]=p);
+  const yTicks=[0,0.5,1].map(rt=>{
+    const val=yLo+(yHi-yLo)*rt, py=yOf(val);
+    return`<line x1="${padL}" y1="${py}" x2="${W-padR}" y2="${py}" stroke="rgba(255,255,255,0.08)" stroke-width="0.5" ${rt===0?"":'stroke-dasharray="3,4"'}/><text x="${padL-5}" y="${py+3.5}" text-anchor="end" font-size="10.5" fill="var(--t3)">${Math.round(settings.unit==="lb"?val*2.20462:val)}</text>`;
+  }).join("");
 
-  const slotN=Math.max(xSlots.length,1);
-  const slotXs=xSlots.map((_,i)=>padL+plotW*(i/(Math.max(slotN-1,1))));
+  const lineKg=pts.map(p=>`${xOf(p.t).toFixed(1)},${yOf(p.kg).toFixed(1)}`).join(" ");
+  const lineRm=pts.map(p=>`${xOf(p.t).toFixed(1)},${yOf(Math.min(p.rm||p.kg,yHi)).toFixed(1)}`).join(" ");
+  const area=single?"":`<polygon points="${padL},${padT+plotH} ${lineKg} ${xOf(tMax).toFixed(1)},${padT+plotH}" fill="rgba(232,89,60,0.10)"/>`;
+  // 最高重量の点を強調
+  let bi=0;pts.forEach((p,i)=>{if(p.kg>pts[bi].kg||(p.kg===pts[bi].kg&&p.reps>pts[bi].reps))bi=i;});
+  const dots=pts.map((p,i)=>{
+    const x=xOf(p.t).toFixed(1),y=yOf(p.kg).toFixed(1);
+    const isBest=i===bi&&pts.length>1;
+    return`<circle cx="${x}" cy="${y}" r="${isBest?4.5:3}" fill="${isBest?"var(--go)":"var(--ac)"}" stroke="var(--bg2)" stroke-width="1.5"/>`;
+  }).join("");
 
-  // Y軸3本の補助線
-  const yLines=[0,0.5,1].map(ratio=>{
-    const val=Math.round(maxY*ratio);
-    const py=padT+plotH*(1-ratio);
-    return{val,py};
-  });
-
-  // データ点の座標
-  const activePts=xSlots.map((s,i)=>{
-    const p=dataMap[s.key];
-    if(!p)return null;
-    const py=padT+plotH*(1-p.maxKg/maxY);
-    const pyRm=padT+plotH*(1-(p.rm||0)/maxY);
-    return{x:slotXs[i],y:py,yRm:pyRm,p};
-  });
-
-  const validPts=activePts.filter(Boolean);
-  const polyline=validPts.map(v=>`${v.x},${v.y}`).join(' ');
-  const polylineRm=validPts.map(v=>`${v.x},${v.yRm}`).join(' ');
-
-  const yGridLines=yLines.map(({val,py})=>`<line x1="${padL}" y1="${py}" x2="${W-padR}" y2="${py}" stroke="rgba(255,255,255,0.07)" stroke-width="0.5" ${py===padT+plotH?'':'stroke-dasharray="3,4"'}/><text x="${padL-4}" y="${py+3}" text-anchor="end" font-size="11" fill="var(--t3)">${fmtW(val)}</text>`).join('');
-  const xGridLines=slotXs.map(x=>`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="rgba(255,255,255,0.04)" stroke-width="0.5"/>`).join('');
-  const xLabels=xSlots.map((s,i)=>s.label?`<text x="${slotXs[i]}" y="${H-3}" text-anchor="middle" font-size="11" fill="var(--t3)">${s.label}</text>`:'').join('');
-  const dots=activePts.map(v=>v?`<circle cx="${v.x}" cy="${v.y}" r="3" fill="var(--ac)" stroke="var(--bg2)" stroke-width="1.5"/><circle cx="${v.x}" cy="${v.yRm}" r="3" fill="var(--go)" stroke="var(--bg2)" stroke-width="1.5"/>`:'').join('');
-  const periodLabel=statsP==='day'?'本日':statsP==='week'?'過去7日':statsP==='month'?`今月（${now2.getMonth()+1}月）`:statsP==='year'?'過去5年':'全期間';
-  const latestRm=validPts.length?validPts[validPts.length-1].p.rm:0;
+  const first=pts[0],last=pts[pts.length-1];
+  const diff=Math.round((last.kg-first.kg)*10)/10;
+  const diffTxt=pts.length>1?`<span style="color:${diff>0?"var(--gr)":diff<0?"var(--ac)":"var(--t3)"}">${diff>0?"▲":diff<0?"▼":"±"}${fmtW(Math.abs(diff))}</span>`:"—";
+  const periodLabel=statsP==="week"?"過去7日":statsP==="12m"?"直近12ヶ月":statsP==="year"?"今年":statsP==="month"?"今月":statsP==="day"?"本日":"全期間";
 
   el.innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-      <div style="font-size:12px;color:var(--t3)">重量推移 / ${periodLabel}</div>
-      ${latestRm?`<div style="font-family:var(--fd);font-size:14px;color:var(--go)">推定1RM: ${fmtW(latestRm)}</div>`:''}
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div style="font-size:12.5px;color:var(--t3)">${name} / 重量の推移（${periodLabel}）</div>
+      <div style="font-size:12px;color:var(--t3)">期間内の伸び ${diffTxt}</div>
     </div>
-    <div style="display:flex;gap:10px;margin-bottom:4px">
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:2px;background:var(--ac);border-radius:1px"></div><span style="font-size:11px;color:var(--t3)">最大重量</span></div>
-      <div style="display:flex;align-items:center;gap:3px"><div style="width:10px;height:2px;background:var(--go);border-radius:1px;border-top:1px dashed var(--go)"></div><span style="font-size:11px;color:var(--t3)">推定1RM</span></div>
+    <div style="display:flex;gap:12px;margin-bottom:4px">
+      <div style="display:flex;align-items:center;gap:4px"><div style="width:12px;height:2px;background:var(--ac);border-radius:1px"></div><span style="font-size:11px;color:var(--t3)">最高重量</span></div>
+      <div style="display:flex;align-items:center;gap:4px"><div style="width:12px;height:0;border-top:2px dashed var(--go)"></div><span style="font-size:11px;color:var(--t3)">推定1RM</span></div>
+      <div style="display:flex;align-items:center;gap:4px"><div style="width:8px;height:8px;border-radius:50%;background:var(--go)"></div><span style="font-size:11px;color:var(--t3)">期間ベスト</span></div>
     </div>
-    <svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
-      ${yGridLines}${xGridLines}
-      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="var(--b2)" stroke-width="0.8"/>
-      ${validPts.length>=2?`<polyline points="${polyline}" fill="none" stroke="var(--ac)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${polylineRm}" fill="none" stroke="var(--go)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="4,3"/>`:''}
+    <svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
+      ${yTicks}
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT+plotH}" stroke="var(--b2)" stroke-width="0.8"/>
+      ${area}
+      ${pts.length>1?`<polyline points="${lineRm}" fill="none" stroke="var(--go)" stroke-width="1.4" stroke-dasharray="4,3" stroke-linejoin="round" stroke-linecap="round" opacity="0.85"/>`:""}
+      ${pts.length>1?`<polyline points="${lineKg}" fill="none" stroke="var(--ac)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`:""}
       ${dots}${xLabels}
     </svg>
-    <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">${validPts.slice(-3).map(v=>`<div style="font-size:12px;color:var(--t2)">${v.p.date}: <span style="color:var(--ac)">${fmtW(v.p.maxKg)}</span>/<span style="color:var(--go)">1RM≈${fmtW(v.p.rm)}</span></div>`).join('')}</div>
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:12px;color:var(--t2)">
+      <div>最初 <span style="color:var(--t3)">${_fmtDateShort(first.t,withYear)}</span> <span style="color:var(--ac)">${fmtW(first.kg)}×${first.reps}</span></div>
+      <div>最新 <span style="color:var(--t3)">${_fmtDateShort(last.t,withYear)}</span> <span style="color:var(--ac)">${fmtW(last.kg)}×${last.reps}</span></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--t3);margin-top:3px">期間ベスト ${fmtW(pts[bi].kg)} × ${pts[bi].reps}回（${_fmtDateShort(pts[bi].t,withYear)}）・${pts.length}回実施（タップで閉じる）</div>
   `;
 }
 
@@ -2432,6 +2516,7 @@ function loadRecordToSession(globalIdx){
   // 累積時間：前回のelapsedを引き継いでstartを過去にオフセット
   const prevElapsed=(r.elapsed||0)*60000;
   session={name:sessName,exs:sessExercises,idx:0,start:Date.now()-prevElapsed,_editId:r._id,_baseElapsed:r.elapsed||0};
+  _ensureSid();saveDraft();
   nav('session');renderSession();startElapsedTimer();
 }
 function renderCalDet(){
@@ -3148,6 +3233,8 @@ function reRender(){renderHome();renderSettings();renderDBMuscles();renderDBInt(
 
 /* ═══ INIT ═══ */
 renderSettings();renderDBMuscles();renderDBInt();renderDBEquipBtns();renderDBMachineBtns();renderDBFilter();renderDBList();renderHome();
+// 未保存のワークアウトが残っていれば復旧を案内する
+try{setTimeout(_showResumeBanner,300);}catch(e){}
 </script>
 
 </body>
